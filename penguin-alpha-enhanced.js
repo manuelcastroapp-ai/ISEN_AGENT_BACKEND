@@ -21,11 +21,11 @@ class PenguinAlphaEnhanced extends EventEmitter {
     this.adaptationFactor = config.adaptationFactor || 0.05;
     
     // Inicializar capacidades de deployment expert
-    this.deploymentEngine = this.initializeDeploymentEngine();
-    this.cloudPlatforms = this.initializeCloudPlatforms();
-    this.deploymentStrategies = this.initializeDeploymentStrategies();
-    this.monitoringSystems = this.initializeMonitoringSystems();
-    this.securityPolicies = this.initializeSecurityPolicies();
+    this.deploymentEngine = null;
+    this.cloudPlatforms = new Map();
+    this.deploymentStrategies = new Map();
+    this.monitoringSystems = new Map();
+    this.securityPolicies = new Map();
     
     this.initialize();
   }
@@ -1590,6 +1590,14 @@ class PenguinAlphaEnhanced extends EventEmitter {
       }
     };
   }
+
+  /**
+   * 📊 Obtener recomendaciones del modelo
+   */
+  getRecommendations() {
+    const recommendations = [];
+    
+    // Lógica de recomendaciones...
     
     return recommendations;
   }
