@@ -1,1 +1,39 @@
-{"name": "penguin-alpha-enhanced-ide", "version": "1.0.0", "description": "Penguin Alpha Enhanced IDE - Plataforma de desarrollo con IA cuántica", "main": "server.js", "type": "module", "scripts": {"start": "node server.js", "dev": "nodemon server.js", "build": "echo \"Build completed\"", "test": "echo \"Tests completed\"", "setup": "npm install && mkdir -p workspaces public uploads"}, "keywords": ["ide", "ai", "quantum", "development", "collaboration", "deployment", "penguin-alpha"], "author": "Penguin Alpha Enhanced Team", "license": "MIT", "dependencies": {"express": "^4.21.2", "socket.io": "^4.8.1", "cors": "^2.8.5", "multer": "^1.4.5-lts.1", "uuid": "^10.0.0", "chokidar": "^4.0.1", "debug": "^4.4.0"}, "devDependencies": {"nodemon": "^3.1.7"}, "engines": {"node": ">=18.0.0"}, "repository": {"type": "git", "url": "https://github.com/penguin-alpha/enhanced-ide"}, "bugs": {"url": "https://github.com/penguin-alpha/enhanced-ide/issues"}, "homepage": "https://penguin-alpha-ide.example.com"}
+{
+  "name": "penguin-alpha-enhanced-ide",
+  "version": "1.0.0",
+  "description": "Penguin Alpha Enhanced IDE - Plataforma de desarrollo con IA cuántica",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js",
+    "build": "echo \"Build completed\"",
+    "test": "echo \"Tests completed\"",
+    "setup": "npm install && mkdir -p workspaces public uploads"
+  },
+  "keywords": ["ide", "ai", "quantum", "development", "collaboration", "deployment", "penguin-alpha"],
+  "author": "Penguin Alpha Enhanced Team",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.21.2",
+    "socket.io": "^4.8.1",
+    "cors": "^2.8.5",
+    "multer": "^1.4.5-lts.1",
+    "uuid": "^10.0.0",
+    "chokidar": "^4.0.1",
+    "debug": "^4.4.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.7"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/penguin-alpha/enhanced-ide"
+  },
+  "bugs": {
+    "url": "https://github.com/penguin-alpha/enhanced-ide/issues"
+  },
+  "homepage": "https://penguin-alpha-ide.example.com"
+}
