@@ -80,21 +80,26 @@ class PenguinAlphaServer {
   }
 
   /**
-   * 🛣️ Configurar rutas API
+   * 🏠 Servir frontend
    */
   setupRoutes() {
-    // Health check
+    // Servir frontend estático
+    this.app.use(express.static(path.join(__dirname, 'frontend')));
+    
+    // Ruta principal
+    this.app.get('/', (req, res) => {
+      res.sendFile(path.join(__dirname, 'frontend', 'index.html'));
+    });
+
+    // API Health check
     this.app.get('/api/health', (req, res) => {
       res.json({
         status: 'healthy',
-        service: 'Penguin Alpha Enhanced Server',
-        version: '1.0.0',
-        features: {
-          ai_model: 'active',
-          deployment: 'active',
-          collaboration: 'active',
-          code_generation: 'active'
-        }
+        timestamp: new Date().toISOString(),
+        model: this.penguinModel ? 'active' : 'inactive',
+        deployment: this.deploymentExpert ? 'active' : 'inactive',
+        workspaces: this.workspaces.size,
+        uptime: process.uptime()
       });
     });
 

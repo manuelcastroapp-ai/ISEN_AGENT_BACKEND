@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🧠 Penguin Alpha Enhanced IDE</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .quantum-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 25%, #f093fb 50%, #f5576c 75%, #4facfe 100%);
+            background-size: 400% 400%;
+            animation: quantumShift 15s ease infinite;
+        }
+        @keyframes quantumShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        .glass-effect {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .code-editor {
+            font-family: 'Consolas', 'Monaco', monospace;
+            background: #1e1e1e;
+            color: #d4d4d4;
+        }
+        .terminal {
+            background: #0d1117;
+            color: #58a6ff;
+            font-family: 'Consolas', 'Monaco', monospace;
+        }
+    </style>
+</head>
+<body class="quantum-bg min-h-screen text-white">
+    <!-- Header -->
+    <header class="glass-effect border-b border-white/20">
+        <div class="container mx-auto px-4 py-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
+                        <i data-lucide="brain" class="w-6 h-6"></i>
+                    </div>
+                    <h1 class="text-2xl font-bold">Penguin Alpha Enhanced IDE</h1>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <span id="connection-status" class="flex items-center space-x-2">
+                        <div class="w-3 h-3 bg-red-500 rounded-full"></div>
+                        <span class="text-sm">Desconectado</span>
+                    </span>
+                    <button id="new-workspace" class="bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded-lg flex items-center space-x-2 transition">
+                        <i data-lucide="plus" class="w-4 h-4"></i>
+                        <span>Nuevo Workspace</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="container mx-auto px-4 py-6">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Left Panel - File Explorer -->
+            <div class="lg:col-span-1">
+                <div class="glass-effect rounded-xl p-4">
+                    <h2 class="text-lg font-semibold mb-4 flex items-center">
+                        <i data-lucide="folder" class="w-5 h-5 mr-2"></i>
+                        Explorador de Archivos
+                    </h2>
+                    <div id="file-tree" class="space-y-2">
+                        <!-- Files will be loaded here -->
+                    </div>
+                </div>
+
+                <!-- AI Assistant Panel -->
+                <div class="glass-effect rounded-xl p-4 mt-6">
+                    <h2 class="text-lg font-semibold mb-4 flex items-center">
+                        <i data-lucide="sparkles" class="w-5 h-5 mr-2"></i>
+                        Asistente IA Cuántica
+                    </h2>
+                    <div class="space-y-3">
+                        <textarea id="ai-prompt" 
+                                  class="w-full p-3 rounded-lg bg-white/10 border border-white/20 text-white placeholder-white/50"
+                                  rows="3"
+                                  placeholder="Pide a Penguin Alpha que genere código..."></textarea>
+                        <div class="flex space-x-2">
+                            <button id="generate-code" class="flex-1 bg-blue-600 hover:bg-blue-700 px-3 py-2 rounded-lg text-sm transition">
+                                Generar Código
+                            </button>
+                            <button id="analyze-code" class="flex-1 bg-green-600 hover:bg-green-700 px-3 py-2 rounded-lg text-sm transition">
+                                Analizar Código
+                            </button>
+                        </div>
+                        <div id="ai-response" class="p-3 rounded-lg bg-white/5 border border-white/10 text-sm hidden">
+                            <!-- AI response will appear here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Center Panel - Code Editor -->
+            <div class="lg:col-span-2">
+                <div class="glass-effect rounded-xl p-4">
+                    <div class="flex items-center justify-between mb-4">
+                        <h2 class="text-lg font-semibold flex items-center">
+                            <i data-lucide="code" class="w-5 h-5 mr-2"></i>
+                            Editor de Código
+                        </h2>
+                        <div class="flex items-center space-x-2">
+                            <select id="language-select" class="bg-white/10 border border-white/20 rounded px-3 py-1 text-sm">
+                                <option value="javascript">JavaScript</option>
+                                <option value="python">Python</option>
+                                <option value="html">HTML</option>
+                                <option value="css">CSS</option>
+                            </select>
+                            <button id="run-code" class="bg-green-600 hover:bg-green-700 px-3 py-1 rounded-lg text-sm flex items-center space-x-1 transition">
+                                <i data-lucide="play" class="w-4 h-4"></i>
+                                <span>Ejecutar</span>
+                            </button>
+                            <button id="deploy-code" class="bg-purple-600 hover:bg-purple-700 px-3 py-1 rounded-lg text-sm flex items-center space-x-1 transition">
+                                <i data-lucide="rocket" class="w-4 h-4"></i>
+                                <span>Deploy</span>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="space-y-4">
+                        <div class="code-editor rounded-lg p-4">
+                            <div class="flex items-center justify-between mb-2">
+                                <span id="current-file" class="text-sm text-gray-400">Sin archivo seleccionado</span>
+                                <button id="save-file" class="text-blue-400 hover:text-blue-300 text-sm">
+                                    <i data-lucide="save" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+                            <textarea id="code-editor" 
+                                      class="w-full h-96 bg-transparent outline-none resize-none"
+                                      placeholder="// Escribe tu código aquí..."
+                                      spellcheck="false"></textarea>
+                        </div>
+
+                        <!-- Terminal Output -->
+                        <div class="terminal rounded-lg p-4">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="text-sm text-gray-400">Terminal</span>
+                                <button id="clear-terminal" class="text-gray-400 hover:text-gray-300 text-sm">
+                                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+                            <div id="terminal-output" class="font-mono text-sm h-32 overflow-y-auto">
+                                <div class="text-gray-500">$ Terminal lista...</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Collaboration Panel -->
+                <div class="glass-effect rounded-xl p-4 mt-6">
+                    <h2 class="text-lg font-semibold mb-4 flex items-center">
+                        <i data-lucide="users" class="w-5 h-5 mr-2"></i>
+                        Colaboración en Tiempo Real
+                    </h2>
+                    <div id="active-users" class="flex space-x-2">
+                        <!-- Active users will appear here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Modals -->
+    <div id="workspace-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden z-50">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="glass-effect rounded-xl p-6 max-w-md w-full">
+                <h3 class="text-xl font-semibold mb-4">Crear Nuevo Workspace</h3>
+                <div class="space-y-4">
+                    <input type="text" id="workspace-name" placeholder="Nombre del workspace" 
+                           class="w-full p-3 rounded-lg bg-white/10 border border-white/20 text-white placeholder-white/50">
+                    <textarea id="workspace-description" placeholder="Descripción (opcional)" 
+                              class="w-full p-3 rounded-lg bg-white/10 border border-white/20 text-white placeholder-white/50"
+                              rows="3"></textarea>
+                    <div class="flex space-x-3">
+                        <button id="create-workspace" class="flex-1 bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded-lg transition">
+                            Crear
+                        </button>
+                        <button id="cancel-workspace" class="flex-1 bg-gray-600 hover:bg-gray-700 px-4 py-2 rounded-lg transition">
+                            Cancelar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/app.js"></script>
+</body>
+</html>
