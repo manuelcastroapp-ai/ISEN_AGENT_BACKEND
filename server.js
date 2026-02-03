@@ -1112,12 +1112,14 @@ class PenguinAlphaServer {
    * 🚀 Iniciar servidor
    */
   start() {
-    this.server.listen(this.port, () => {
-      console.log(`🌐 Penguin Alpha Enhanced Server corriendo en puerto ${this.port}`);
+    const port = process.env.PORT || this.port;
+    this.server.listen(port, () => {
+      console.log(`🌐 Penguin Alpha Enhanced Server corriendo en puerto ${port}`);
       console.log(`🧠 Modelo IA: ${this.penguinModel ? 'Activo' : 'Inactivo'}`);
       console.log(`☁️ Deployment Expert: ${this.deploymentExpert ? 'Activo' : 'Inactivo'}`);
       console.log(`🔗 WebSocket: Activo`);
       console.log(`📁 Workspaces: ${this.workspaces.size}`);
+      console.log(`🚀 Render Deployment: Configurado`);
     });
   }
 }
