@@ -1,0 +1,11 @@
+{
+  "id": "debug-agent",
+  "name": "Debug Agent Pro",
+  "version": "1.0.0",
+  "description": "Detects errors, suggests fixes, and generates tests.",
+  "author": "ISEN",
+  "category": "Agents",
+  "price": "$9/mo",
+  "permissions": ["read", "write", "terminal"],
+  "hooks": ["onOpenFile", "onSave", "onRun"]
+}

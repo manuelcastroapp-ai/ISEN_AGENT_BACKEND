@@ -1,6 +1,6 @@
 [build]
-  publish = "."
-  command = "npm run build"
+  publish = "frontend"
+  command = "echo 'Build completed'"
 
 [build.environment]
   NODE_VERSION = "18"

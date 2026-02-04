@@ -1,0 +1,209 @@
+/* 🎨 Temas Dinámicos Enterprise - Feedback Applied */
+
+/* 🌙 Tema Oscuro (Default) */
+[data-theme="dark"] {
+    --bg-primary: #1e1e1e;
+    --bg-secondary: #252526;
+    --bg-tertiary: #2d2d30;
+    --bg-editor: #1e1e1e;
+    --accent-primary: #007acc;
+    --accent-secondary: #0e639c;
+    --accent-success: #4ec9b0;
+    --accent-warning: #ce9178;
+    --accent-danger: #f48771;
+    --text-primary: #cccccc;
+    --text-secondary: #969696;
+    --border-color: #3e3e42;
+    --sidebar-bg: #252526;
+    --activity-bar: #333333;
+}
+
+/* ☀️ Tema Claro */
+[data-theme="light"] {
+    --bg-primary: #ffffff;
+    --bg-secondary: #f3f3f3;
+    --bg-tertiary: #e8e8e8;
+    --bg-editor: #ffffff;
+    --accent-primary: #0066cc;
+    --accent-secondary: #004499;
+    --accent-success: #008000;
+    --accent-warning: #ff8c00;
+    --accent-danger: #ff4444;
+    --text-primary: #333333;
+    --text-secondary: #666666;
+    --border-color: #d4d4d4;
+    --sidebar-bg: #f8f8f8;
+    --activity-bar: #e1e1e1;
+}
+
+/* 👁️ Tema Alto Contraste */
+[data-theme="high-contrast"] {
+    --bg-primary: #000000;
+    --bg-secondary: #000000;
+    --bg-tertiary: #000000;
+    --bg-editor: #000000;
+    --accent-primary: #ffffff;
+    --accent-secondary: #cccccc;
+    --accent-success: #00ff00;
+    --accent-warning: #ffff00;
+    --accent-danger: #ff0000;
+    --text-primary: #ffffff;
+    --text-secondary: #cccccc;
+    --border-color: #ffffff;
+    --sidebar-bg: #000000;
+    --activity-bar: #000000;
+}
+
+/* 🌸 Tema Minimalista */
+[data-theme="minimal"] {
+    --bg-primary: #fafafa;
+    --bg-secondary: #ffffff;
+    --bg-tertiary: #f5f5f5;
+    --bg-editor: #ffffff;
+    --accent-primary: #6750a4;
+    --accent-secondary: #5241a0;
+    --accent-success: #4caf50;
+    --accent-warning: #ff9800;
+    --accent-danger: #f44336;
+    --text-primary: #1d1b20;
+    --text-secondary: #49454f;
+    --border-color: #e7e2e9;
+    --sidebar-bg: #ffffff;
+    --activity-bar: #f7f2fa;
+}
+
+/* 🎨 Tema Cyberpunk */
+[data-theme="cyberpunk"] {
+    --bg-primary: #0a0a0a;
+    --bg-secondary: #1a0a1a;
+    --bg-tertiary: #2a0a2a;
+    --bg-editor: #0a0a0a;
+    --accent-primary: #ff00ff;
+    --accent-secondary: #00ffff;
+    --accent-success: #00ff00;
+    --accent-warning: #ffff00;
+    --accent-danger: #ff0066;
+    --text-primary: #00ffff;
+    --text-secondary: #ff00ff;
+    --border-color: #ff00ff;
+    --sidebar-bg: #1a0a1a;
+    --activity-bar: #2a0a2a;
+}
+
+/* 🌈 Transiciones Suaves */
+* {
+    transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+}
+
+/* 🎯 Modo Simplificado para Principiantes */
+[data-mode="beginner"] .activity-bar {
+    width: 40px;
+}
+
+[data-mode="beginner"] .sidebar {
+    width: 250px;
+}
+
+[data-mode="beginner"] .bottom-panel {
+    height: 150px;
+}
+
+[data-mode="beginner"] .right-panel {
+    width: 350px;
+}
+
+[data-mode="beginner"] .extension-item,
+[data-mode="beginner"] .sidebar-section-title,
+[data-mode="beginner"] .panel-tab:not(.active) {
+    display: none;
+}
+
+/* 🚀 Modo Avanzado para Expertos */
+[data-mode="advanced"] .activity-bar {
+    width: 56px;
+}
+
+[data-mode="advanced"] .sidebar {
+    width: 350px;
+}
+
+[data-mode="advanced"] .bottom-panel {
+    height: 250px;
+}
+
+[data-mode="advanced"] .right-panel {
+    width: 450px;
+}
+
+/* 📱 Responsive Design */
+@media (max-width: 768px) {
+    .sidebar {
+        width: 200px;
+    }
+    
+    .right-panel {
+        width: 300px;
+    }
+    
+    .bottom-panel {
+        height: 120px;
+    }
+}
+
+@media (max-width: 480px) {
+    .sidebar {
+        display: none;
+    }
+    
+    .right-panel {
+        width: 100%;
+        position: fixed;
+        bottom: 0;
+        height: 40vh;
+        z-index: 1000;
+    }
+}
+
+/* ♿ Accesibilidad Universal */
+@media (prefers-reduced-motion: reduce) {
+    * {
+        transition: none !important;
+    }
+}
+
+/* 🎨 Focus Indicators */
+:focus-visible {
+    outline: 2px solid var(--accent-primary);
+    outline-offset: 2px;
+}
+
+/* 📊 High Contrast Mode */
+@media (prefers-contrast: high) {
+    [data-theme="dark"] {
+        --bg-primary: #000000;
+        --text-primary: #ffffff;
+        --border-color: #ffffff;
+    }
+}
+
+/* 🌙 Dark Mode Support */
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme]) {
+        --bg-primary: #1e1e1e;
+        --bg-secondary: #252526;
+        --bg-tertiary: #2d2d30;
+        --text-primary: #cccccc;
+        --text-secondary: #969696;
+    }
+}
+
+/* ☀️ Light Mode Support */
+@media (prefers-color-scheme: light) {
+    :root:not([data-theme]) {
+        --bg-primary: #ffffff;
+        --bg-secondary: #f3f3f3;
+        --bg-tertiary: #e8e8e8;
+        --text-primary: #333333;
+        --text-secondary: #666666;
+    }
+}

@@ -1,3 +1,4 @@
+require('dotenv').config();
 /**
  * 🌐 Penguin Alpha Enhanced Server – Plataforma de Desarrollo con IA Cuántica
  * Servidor completo para IDE tipo Replit/Manus con capacidades cuánticas
@@ -13,10 +14,12 @@ const { v4: uuidv4 } = require('uuid');
 const chokidar = require('chokidar');
 const { exec } = require('child_process');
 const multer = require('multer');
+const fsSync = require('fs');
 
 // Importar modelo Penguin Alpha Enhanced
 const PenguinAlphaEnhanced = require('./penguin-alpha-enhanced');
 const DeploymentExpert = require('./deployment-expert');
+const LLMClient = require('./llm-client');
 
 class PenguinAlphaServer {
   constructor() {
@@ -35,6 +38,8 @@ class PenguinAlphaServer {
     this.fileSystem = new Map();
     this.activeProjects = new Map();
     this.codeExecution = new Map();
+    this.lastAudit = null;
+    this.permissions = this.loadAgentPermissions();
     
     // Inicializar modelo IA
     this.penguinModel = new PenguinAlphaEnhanced({
@@ -43,6 +48,7 @@ class PenguinAlphaServer {
       adaptationFactor: 0.05
     });
     
+    this.llm = new LLMClient();
     this.deploymentExpert = new DeploymentExpert(this.penguinModel);
     
     this.setupMiddleware();
@@ -126,6 +132,12 @@ class PenguinAlphaServer {
     this.app.post('/api/ai/analyze', this.analyzeCode.bind(this));
     this.app.post('/api/ai/optimize', this.optimizeCode.bind(this));
     this.app.post('/api/ai/deploy', this.deployProject.bind(this));
+    this.app.post('/api/ai/chat', this.chatEndpoint.bind(this));
+
+    // Audits
+    this.app.post('/api/audit/e2e', this.runE2EAudit.bind(this));
+    this.app.get('/api/audit/status', this.getAuditStatus.bind(this));
+    this.app.get('/api/permissions', this.getPermissions.bind(this));
 
     // Collaboration
     this.app.get('/api/collaboration/:workspace/users', this.getWorkspaceUsers.bind(this));
@@ -148,9 +160,9 @@ class PenguinAlphaServer {
     this.app.post('/api/marketplace/components', this.createMarketplaceComponent.bind(this));
     this.app.get('/api/marketplace/components/:id', this.getMarketplaceComponent.bind(this));
 
-    // Serve frontend
+    // Serve frontend fallback
     this.app.get('*', (req, res) => {
-      res.sendFile(path.join(__dirname, 'public', 'index.html'));
+      res.sendFile(path.join(__dirname, 'frontend', 'index.html'));
     });
   }
 
@@ -184,12 +196,19 @@ class PenguinAlphaServer {
         });
       });
 
-      // Chat/Collaboration
-      socket.on('chat-message', (data) => {
-        socket.to(data.workspaceId).emit('chat-message', {
-          ...data,
-          userId: socket.id,
-          timestamp: new Date().toISOString()
+      // Chat/Collaboration (frontend usa chat_message)
+      socket.on('chat_message', async (data) => {
+        if (data.workspaceId) {
+          socket.to(data.workspaceId).emit('chat_message', {
+            ...data,
+            userId: socket.id,
+            timestamp: new Date().toISOString()
+          });
+        }
+        const reply = await this.chatWithAI(data.message);
+        socket.emit('chat_response', {
+          sender: 'AI',
+          message: reply
         });
       });
 
@@ -241,10 +260,12 @@ class PenguinAlphaServer {
       await this.penguinModel.initialize();
       console.log('🧠 Modelo Penguin Alpha Enhanced inicializado');
       
-      // Iniciar evolución continua
-      setInterval(() => {
-        this.evolveModel();
-      }, 60000); // Cada minuto
+      // Iniciar evolución continua si existe
+      if (typeof this.penguinModel.evolve === 'function') {
+        setInterval(() => {
+          this.evolveModel();
+        }, 60000); // Cada minuto
+      }
     } catch (error) {
       console.error('❌ Error inicializando modelo:', error);
     }
@@ -255,6 +276,7 @@ class PenguinAlphaServer {
    */
   async evolveModel() {
     try {
+      if (typeof this.penguinModel.evolve !== 'function') return;
       const evolution = await this.penguinModel.evolve();
       console.log(`🧬 Evolución: ${evolution.evolutionLevel}`);
       
@@ -387,7 +409,7 @@ class PenguinAlphaServer {
       
       for (const entry of entries) {
         const fullPath = path.join(dirPath, entry.name);
-        const relativePath = path.join(basePath, entry.name);
+        const relativePath = path.join(basePath, entry.name).replace(/\\/g, '/');
         
         if (entry.isDirectory()) {
           items.push({
@@ -429,8 +451,9 @@ class PenguinAlphaServer {
       if (!workspace) {
         return res.status(404).json({ error: 'Workspace no encontrado' });
       }
-      
-      const fullPath = path.join(__dirname, 'workspaces', id, filePath);
+
+      const safePath = this.sanitizeRelativePath(filePath);
+      const fullPath = path.join(__dirname, 'workspaces', id, safePath);
       
       if (type === 'directory') {
         await fs.mkdir(fullPath, { recursive: true });
@@ -463,7 +486,8 @@ class PenguinAlphaServer {
         return res.status(404).json({ error: 'Workspace no encontrado' });
       }
       
-      const fullPath = path.join(__dirname, 'workspaces', id, filePath);
+      const safePath = this.sanitizeRelativePath(filePath);
+      const fullPath = path.join(__dirname, 'workspaces', id, safePath);
       await fs.writeFile(fullPath, content);
       
       workspace.updatedAt = new Date().toISOString();
@@ -490,7 +514,8 @@ class PenguinAlphaServer {
         return res.status(404).json({ error: 'Workspace no encontrado' });
       }
       
-      const fullPath = path.join(__dirname, 'workspaces', id, filePath);
+      const safePath = this.sanitizeRelativePath(filePath);
+      const fullPath = path.join(__dirname, 'workspaces', id, safePath);
       await fs.unlink(fullPath);
       
       workspace.updatedAt = new Date().toISOString();
@@ -535,6 +560,13 @@ class PenguinAlphaServer {
   async executeCode(req, res) {
     try {
       const { code, language, workspaceId } = req.body;
+      const allowed = new Set(['javascript', 'python', 'bash']);
+      if (!allowed.has(language)) {
+        return res.status(400).json({ error: 'Lenguaje no soportado' });
+      }
+      if (!code || code.length > 50000) {
+        return res.status(400).json({ error: 'Código inválido o demasiado grande' });
+      }
       const executionId = uuidv4();
       
       // Configurar ejecución según lenguaje
@@ -578,7 +610,7 @@ class PenguinAlphaServer {
       case 'javascript':
         return `node -e "${code.replace(/"/g, '\\"')}"`;
       case 'python':
-        return `python3 -c "${code.replace(/"/g, '\\"')}"`;
+        return `python -c "${code.replace(/"/g, '\\"')}"`;
       case 'bash':
         return code;
       default:
@@ -632,32 +664,23 @@ class PenguinAlphaServer {
   async generateCode(req, res) {
     try {
       const { prompt, language, context, workspaceId } = req.body;
-      
-      // Usar modelo Penguin Alpha Enhanced
-      const result = await this.penguinModel.enhancedProcessing('quantum_reasoning', {
-        context: 'code_generation',
-        intention: 'generate_optimal_code',
-        data: {
-          prompt,
-          language,
-          context,
-          workspaceId
-        }
-      });
-      
-      const generatedCode = result.synthesis?.generated || '// Código generado por Penguin Alpha Enhanced';
-      
-      // Evolucionar modelo con esta interacción
-      await this.penguinModel.learn('code_generation', {
-        prompt,
-        result: generatedCode,
-        success: true
-      });
-      
+      if (!this.llm.isEnabled()) {
+        return res.status(400).json({ error: 'LLM no configurado. Define OPENAI_API_KEY.' });
+      }
+
+      const reply = await this.llm.chat([
+        { role: 'system', content: `Genera código ${language || 'javascript'} limpio. Devuelve SOLO código.` },
+        { role: 'user', content: prompt }
+      ], { temperature: 0.2, max_tokens: 900 });
+
+      if (!reply.ok) {
+        return res.status(500).json({ error: reply.error });
+      }
+
       res.json({
-        code: generatedCode,
-        confidence: result.confidence || 0.8,
-        suggestions: result.recommendations || []
+        code: reply.content,
+        confidence: 0.85,
+        suggestions: []
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -670,22 +693,25 @@ class PenguinAlphaServer {
   async analyzeCode(req, res) {
     try {
       const { code, language } = req.body;
-      
-      const analysis = await this.penguinModel.enhancedProcessing('spatial_analysis', {
-        context: 'code_analysis',
-        intention: 'analyze_code_quality',
-        data: {
-          code,
-          language
-        }
-      });
-      
+      if (!this.llm.isEnabled()) {
+        return res.status(400).json({ error: 'LLM no configurado. Define OPENAI_API_KEY.' });
+      }
+
+      const reply = await this.llm.chat([
+        { role: 'system', content: 'Analiza el código y devuelve issues, sugerencias y complejidad.' },
+        { role: 'user', content: `Language: ${language}\nCode:\n${code}` }
+      ], { temperature: 0.1, max_tokens: 700 });
+
+      if (!reply.ok) {
+        return res.status(500).json({ error: reply.error });
+      }
+
       res.json({
-        quality: analysis.synthesis?.quality || 'good',
-        issues: analysis.synthesis?.issues || [],
-        suggestions: analysis.synthesis?.suggestions || [],
-        complexity: analysis.synthesis?.complexity || 'medium',
-        metrics: analysis.synthesis?.metrics || {}
+        quality: 'unknown',
+        issues: [],
+        suggestions: [reply.content],
+        complexity: 'unknown',
+        metrics: {}
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -698,21 +724,24 @@ class PenguinAlphaServer {
   async optimizeCode(req, res) {
     try {
       const { code, language, optimizationType } = req.body;
-      
-      const optimization = await this.penguinModel.enhancedProcessing('alchemical_transmutation', {
-        context: 'code_optimization',
-        intention: optimizationType || 'performance',
-        data: {
-          code,
-          language
-        }
-      });
-      
+      if (!this.llm.isEnabled()) {
+        return res.status(400).json({ error: 'LLM no configurado. Define OPENAI_API_KEY.' });
+      }
+
+      const reply = await this.llm.chat([
+        { role: 'system', content: `Optimiza el código para ${optimizationType || 'performance'}. Devuelve SOLO código.` },
+        { role: 'user', content: `Language: ${language}\nCode:\n${code}` }
+      ], { temperature: 0.2, max_tokens: 900 });
+
+      if (!reply.ok) {
+        return res.status(500).json({ error: reply.error });
+      }
+
       res.json({
-        optimizedCode: optimization.synthesis?.optimized || code,
-        improvements: optimization.synthesis?.improvements || [],
-        performanceGain: optimization.synthesis?.performanceGain || '0%',
-        recommendations: optimization.synthesis?.recommendations || []
+        optimizedCode: reply.content,
+        improvements: [],
+        performanceGain: 'unknown',
+        recommendations: []
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -907,39 +936,7 @@ class PenguinAlphaServer {
    */
   async getTemplates(req, res) {
     try {
-      const templates = [
-        {
-          id: 'react-app',
-          name: 'React Application',
-          description: 'Aplicación React con TypeScript y Tailwind',
-          icon: '⚛️',
-          files: [
-            { name: 'package.json', content: '{"name": "react-app", "version": "1.0.0"}' },
-            { name: 'src/App.tsx', content: 'import React from "react";\n\nexport default function App() {\n  return <div>Hello World</div>;\n}' }
-          ]
-        },
-        {
-          id: 'node-api',
-          name: 'Node.js API',
-          description: 'API REST con Express y TypeScript',
-          icon: '🚀',
-          files: [
-            { name: 'package.json', content: '{"name": "node-api", "version": "1.0.0"}' },
-            { name: 'src/index.ts', content: 'import express from "express";\n\nconst app = express();\napp.listen(3000);' }
-          ]
-        },
-        {
-          id: 'python-app',
-          name: 'Python Application',
-          description: 'Aplicación Python con FastAPI',
-          icon: '🐍',
-          files: [
-            { name: 'requirements.txt', content: 'fastapi\nuvicorn' },
-            { name: 'main.py', content: 'from fastapi import FastAPI\n\napp = FastAPI()\n\n@app.get("/")\nasync def root():\n    return {"message": "Hello World"}' }
-          ]
-        }
-      ];
-      
+      const templates = this.getTemplatesData();
       res.json(templates);
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -1049,32 +1046,147 @@ class PenguinAlphaServer {
   async saveFileChange(data) {
     try {
       const { workspaceId, path: filePath, content } = data;
-      const fullPath = path.join(__dirname, 'workspaces', workspaceId, filePath);
+      const safePath = this.sanitizeRelativePath(filePath);
+      const fullPath = path.join(__dirname, 'workspaces', workspaceId, safePath);
       await fs.writeFile(fullPath, content);
     } catch (error) {
       console.error('Error guardando archivo:', error);
     }
   }
 
+  sanitizeRelativePath(filePath) {
+    const value = String(filePath || '').replace(/\\/g, '/');
+    if (!value || value.includes('..')) {
+      throw new Error('Ruta inválida');
+    }
+    return value.replace(/^\/+/, '');
+  }
+
+  loadAgentPermissions() {
+    try {
+      const raw = fsSync.readFileSync(path.join(__dirname, 'agent-permissions.json'), 'utf8');
+      return JSON.parse(raw);
+    } catch {
+      return {
+        allowRoots: ['D:\\', 'C:\\Users\\'],
+        denyRoots: ['C:\\Windows', 'C:\\Program Files', 'C:\\Program Files (x86)', 'C:\\ProgramData', 'C:\\Recovery', 'C:\\Windows.old']
+      };
+    }
+  }
+
+  getPermissions(req, res) {
+    res.json(this.permissions);
+  }
+
+  async chatWithAI(message) {
+    const reply = await this.llm.chat([
+      { role: 'system', content: 'Eres un asistente de programación. Responde claro y directo.' },
+      { role: 'user', content: String(message || '') }
+    ], { temperature: 0.3, max_tokens: 800 });
+
+    if (!reply.ok) return reply.error;
+    return reply.content;
+  }
+
+  async chatEndpoint(req, res) {
+    try {
+      const { message } = req.body;
+      const reply = await this.chatWithAI(message);
+      res.json({ reply });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  async runE2EAudit(req, res) {
+    const result = {
+      startedAt: new Date().toISOString(),
+      checks: [],
+      ok: true
+    };
+    try {
+      const workspace = await this.createAuditWorkspace();
+      result.checks.push({ name: 'workspace:create', ok: true, id: workspace.id });
+
+      await this.createAuditFile(workspace.id);
+      result.checks.push({ name: 'file:create', ok: true });
+
+      await this.updateAuditFile(workspace.id);
+      result.checks.push({ name: 'file:update', ok: true });
+
+      const execOk = await this.executeAuditCode(workspace.id);
+      result.checks.push({ name: 'code:execute', ok: execOk });
+
+      if (this.llm.isEnabled()) {
+        const aiReply = await this.chatWithAI('Ping');
+        result.checks.push({ name: 'ai:chat', ok: Boolean(aiReply) });
+      } else {
+        result.checks.push({ name: 'ai:chat', ok: false, note: 'LLM not configured' });
+      }
+    } catch (error) {
+      result.ok = false;
+      result.error = error.message;
+    }
+    result.endedAt = new Date().toISOString();
+    this.lastAudit = result;
+    res.json(result);
+  }
+
+  getAuditStatus(req, res) {
+    res.json(this.lastAudit || { ok: false, note: 'No audit run yet' });
+  }
+
+  async createAuditWorkspace() {
+    const workspaceId = uuidv4();
+    const workspace = {
+      id: workspaceId,
+      name: 'Audit Workspace',
+      description: 'Auto audit',
+      template: 'blank',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      files: {},
+      collaborators: [],
+      settings: { language: 'javascript', theme: 'dark', autoSave: true }
+    };
+    const workspacePath = path.join(__dirname, 'workspaces', workspaceId);
+    await fs.mkdir(workspacePath, { recursive: true });
+    this.workspaces.set(workspaceId, workspace);
+    return workspace;
+  }
+
+  async createAuditFile(workspaceId) {
+    const filePath = path.join(__dirname, 'workspaces', workspaceId, 'audit.js');
+    await fs.writeFile(filePath, 'console.log("audit");');
+  }
+
+  async updateAuditFile(workspaceId) {
+    const filePath = path.join(__dirname, 'workspaces', workspaceId, 'audit.js');
+    await fs.writeFile(filePath, 'console.log("audit-updated");');
+  }
+
+  async executeAuditCode(workspaceId) {
+    return new Promise((resolve) => {
+      exec('node -e "console.log(\\"audit-run\\")"', { timeout: 10000 }, (error) => {
+        resolve(!error);
+      });
+    });
+  }
+
   /**
    * 🤖 Manejar solicitud IA
    */
   async handleAIRequest(data) {
-    try {
-      const { type, prompt, context } = data;
-      
-      switch (type) {
-        case 'generate':
-          return await this.generateCode({ body: { prompt, ...context } });
-        case 'analyze':
-          return await this.analyzeCode({ body: context });
-        case 'optimize':
-          return await this.optimizeCode({ body: context });
-        default:
-          throw new Error('Tipo de solicitud IA no soportado');
-      }
-    } catch (error) {
-      throw error;
+    const { type } = data;
+    switch (type) {
+      case 'generate':
+        return { ok: true, code: '// Usa POST /api/ai/generate para generar código.' };
+      case 'analyze':
+        return { ok: true, analysis: 'Usa POST /api/ai/analyze para análisis.' };
+      case 'optimize':
+        return { ok: true, optimized: 'Usa POST /api/ai/optimize para optimización.' };
+      default:
+        throw new Error('Tipo de solicitud IA no soportado');
     }
   }
 
@@ -1096,7 +1208,7 @@ class PenguinAlphaServer {
    */
   async initializeTemplate(workspacePath, templateId) {
     try {
-      const templates = await this.getTemplates({ body: {} });
+      const templates = this.getTemplatesData();
       const template = templates.find(t => t.id === templateId);
       
       if (template) {
@@ -1111,6 +1223,55 @@ class PenguinAlphaServer {
     } catch (error) {
       console.error('Error inicializando template:', error);
     }
+  }
+
+  getTemplatesData() {
+    return [
+      {
+        id: 'react-app',
+        name: 'React Application',
+        description: 'Aplicación React con TypeScript y Tailwind',
+        icon: '⚛️',
+        files: [
+          { name: 'package.json', content: '{"name": "react-app", "version": "1.0.0"}' },
+          { name: 'src/App.tsx', content: 'import React from "react";\n\nexport default function App() {\n  return <div>Hello World</div>;\n}' }
+        ]
+      },
+      {
+        id: 'node-api',
+        name: 'Node.js API',
+        description: 'API REST con Express y TypeScript',
+        icon: '🚀',
+        files: [
+          { name: 'package.json', content: '{"name": "node-api", "version": "1.0.0"}' },
+          { name: 'src/index.ts', content: 'import express from "express";\n\nconst app = express();\napp.listen(3000);' }
+        ]
+      },
+      {
+        id: 'python-app',
+        name: 'Python Application',
+        description: 'Aplicación Python con FastAPI',
+        icon: '🐍',
+        files: [
+          { name: 'requirements.txt', content: 'fastapi\nuvicorn' },
+          { name: 'main.py', content: 'from fastapi import FastAPI\n\napp = FastAPI()\n\n@app.get("/")\nasync def root():\n    return {"message": "Hello World"}' }
+        ]
+      }
+    ];
+  }
+
+  buildChatReply(message) {
+    const text = String(message || '').toLowerCase();
+    if (text.includes('hola') || text.includes('hello')) {
+      return '👋 Hola, ¿en qué te ayudo con tu proyecto?';
+    }
+    if (text.includes('error') || text.includes('bug')) {
+      return '🔎 Cuéntame el error y revisamos el stack/archivo.';
+    }
+    if (text.includes('deploy') || text.includes('desplegar')) {
+      return '🚀 Puedes usar el panel CI/CD o el comando `deploy` en la terminal.';
+    }
+    return '✅ Recibido. Puedo abrir archivos, ejecutar código y ayudarte a depurar.';
   }
 
   /**

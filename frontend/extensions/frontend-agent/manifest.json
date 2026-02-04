@@ -1,0 +1,11 @@
+{
+  "id": "frontend-agent",
+  "name": "Frontend Agent",
+  "version": "1.0.0",
+  "description": "Generates UI components and refactors styles.",
+  "author": "ISEN",
+  "category": "Agents",
+  "price": "$12/mo",
+  "permissions": ["read", "write"],
+  "hooks": ["onOpenFile", "onSave"]
+}

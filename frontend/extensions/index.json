@@ -1,0 +1,22 @@
+{
+  "extensions": [
+    {
+      "id": "debug-agent",
+      "name": "Debug Agent Pro",
+      "price": "$9/mo",
+      "entry": "main.js"
+    },
+    {
+      "id": "frontend-agent",
+      "name": "Frontend Agent",
+      "price": "$12/mo",
+      "entry": "main.js"
+    },
+    {
+      "id": "devops-agent",
+      "name": "DevOps Agent",
+      "price": "$15/mo",
+      "entry": "main.js"
+    }
+  ]
+}

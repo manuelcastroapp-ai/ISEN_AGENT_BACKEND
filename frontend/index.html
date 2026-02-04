@@ -3,199 +3,1195 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🧠 Penguin Alpha Enhanced IDE</title>
+    <title>🚀 Penguin Alpha Ultra IDE - Enterprise VS Code Style</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs/loader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
+    
+    <!-- Enterprise Features - Feedback Applied -->
+    <link rel="stylesheet" href="/themes.css">
+    <script src="/git-integration.js"></script>
+    <script src="/marketplace.js"></script>
+    <script src="/ci-cd-pipeline.js"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-        body { font-family: 'Inter', sans-serif; }
-        .quantum-bg {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 25%, #f093fb 50%, #f5576c 75%, #4facfe 100%);
-            background-size: 400% 400%;
-            animation: quantumShift 15s ease infinite;
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700;800&display=swap');
+        
+        :root {
+            --bg-primary: #1e1e1e;
+            --bg-secondary: #252526;
+            --bg-tertiary: #2d2d30;
+            --bg-editor: #1e1e1e;
+            --accent-primary: #007acc;
+            --accent-secondary: #0e639c;
+            --accent-success: #4ec9b0;
+            --accent-warning: #ce9178;
+            --accent-danger: #f48771;
+            --text-primary: #cccccc;
+            --text-secondary: #969696;
+            --border-color: #3e3e42;
+            --sidebar-bg: #252526;
+            --activity-bar: #333333;
         }
-        @keyframes quantumShift {
-            0% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
-            100% { background-position: 0% 50%; }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }
-        .glass-effect {
-            background: rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            overflow: hidden;
+            height: 100vh;
         }
-        .code-editor {
-            font-family: 'Consolas', 'Monaco', monospace;
-            background: #1e1e1e;
-            color: #d4d4d4;
+
+        .code-font {
+            font-family: 'JetBrains Mono', monospace;
         }
-        .terminal {
-            background: #0d1117;
-            color: #58a6ff;
-            font-family: 'Consolas', 'Monaco', monospace;
+
+        .vscode-layout {
+            display: flex;
+            height: 100vh;
+        }
+
+        /* Activity Bar */
+        .activity-bar {
+            width: 48px;
+            background: var(--activity-bar);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 8px 0;
+        }
+
+        .activity-item {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 6px;
+            margin: 2px 0;
+            cursor: pointer;
+            transition: all 0.2s;
+            position: relative;
+        }
+
+        .activity-item:hover {
+            background: var(--bg-secondary);
+        }
+
+        .activity-item.active {
+            background: var(--accent-primary);
+            color: white;
+        }
+
+        .activity-item.active::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 3px;
+            background: white;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 300px;
+            background: var(--sidebar-bg);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .sidebar-header {
+            padding: 8px 16px;
+            background: var(--bg-tertiary);
+            border-bottom: 1px solid var(--border-color);
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .sidebar-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px;
+        }
+
+        .sidebar-item {
+            padding: 4px 8px;
+            margin: 1px 0;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            transition: all 0.2s;
+        }
+
+        .sidebar-item:hover {
+            background: var(--bg-tertiary);
+        }
+
+        .sidebar-item.active {
+            background: var(--bg-tertiary);
+            color: var(--accent-primary);
+        }
+
+        .sidebar-item i {
+            width: 16px;
+            height: 16px;
+            margin-right: 8px;
+        }
+
+        .sidebar-section {
+            margin-bottom: 16px;
+        }
+
+        .sidebar-section-title {
+            padding: 4px 8px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            color: var(--text-secondary);
+            margin-bottom: 4px;
+        }
+
+        /* Main Editor Area */
+        .main-editor {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: var(--bg-editor);
+        }
+
+        .editor-tabs {
+            height: 35px;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            overflow-x: auto;
+        }
+
+        .editor-tab {
+            height: 35px;
+            padding: 0 12px;
+            display: flex;
+            align-items: center;
+            background: var(--bg-tertiary);
+            border-right: 1px solid var(--border-color);
+            cursor: pointer;
+            font-size: 13px;
+            min-width: 120px;
+            position: relative;
+        }
+
+        .editor-tab.active {
+            background: var(--bg-editor);
+            color: white;
+        }
+
+        .editor-tab.active::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: var(--accent-primary);
+        }
+
+        .editor-tab-close {
+            width: 16px;
+            height: 16px;
+            margin-left: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 3px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .editor-tab-close:hover {
+            background: var(--bg-secondary);
+        }
+
+        .editor-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .editor-main {
+            flex: 1;
+            position: relative;
+        }
+
+        /* Bottom Panel */
+        .bottom-panel {
+            height: 200px;
+            background: var(--bg-secondary);
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .panel-tabs {
+            height: 24px;
+            background: var(--bg-tertiary);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+        }
+
+        .panel-tab {
+            height: 24px;
+            padding: 0 12px;
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            font-size: 11px;
+            border-right: 1px solid var(--border-color);
+            transition: all 0.2s;
+        }
+
+        .panel-tab.active {
+            background: var(--bg-secondary);
+            color: white;
+        }
+
+        .panel-content {
+            flex: 1;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* Right Panel - Chat */
+        .right-panel {
+            width: 400px;
+            background: var(--sidebar-bg);
+            border-left: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chat-header {
+            height: 35px;
+            background: var(--bg-tertiary);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            padding: 0 12px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 12px;
+            background: var(--bg-editor);
+        }
+
+        .chat-input-area {
+            height: 60px;
+            background: var(--bg-secondary);
+            border-top: 1px solid var(--border-color);
+            padding: 8px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chat-input-wrapper {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 3px;
+            padding: 4px 8px;
+        }
+
+        .chat-input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            outline: none;
+            color: var(--text-primary);
+            font-size: 13px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .chat-input::placeholder {
+            color: var(--text-secondary);
+        }
+
+        .chat-send-btn {
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            border-radius: 3px;
+            transition: all 0.2s;
+        }
+
+        .chat-send-btn:hover {
+            background: var(--accent-primary);
+            color: white;
+        }
+
+        /* Message Styles */
+        .chat-message {
+            margin-bottom: 12px;
+            display: flex;
+            align-items: flex-start;
+        }
+
+        .chat-message.user {
+            flex-direction: row-reverse;
+        }
+
+        .message-avatar {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            margin: 0 8px;
+            flex-shrink: 0;
+        }
+
+        .message-avatar.ai {
+            background: var(--accent-primary);
+            color: white;
+        }
+
+        .message-avatar.user {
+            background: var(--accent-success);
+            color: white;
+        }
+
+        .message-content {
+            flex: 1;
+            background: var(--bg-tertiary);
+            border-radius: 6px;
+            padding: 8px 12px;
+            font-size: 13px;
+            line-height: 1.4;
+        }
+
+        .message-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 4px;
+            font-size: 11px;
+            color: var(--text-secondary);
+        }
+
+        .message-text {
+            color: var(--text-primary);
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--bg-primary);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--text-secondary);
+        }
+
+        /* Status Bar */
+        .status-bar {
+            height: 22px;
+            background: var(--accent-primary);
+            color: white;
+            display: flex;
+            align-items: center;
+            padding: 0 12px;
+            font-size: 12px;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .status-item {
+            margin-right: 16px;
+            display: flex;
+            align-items: center;
+        }
+
+        .status-item i {
+            width: 12px;
+            height: 12px;
+            margin-right: 4px;
+        }
+
+        /* Buttons */
+        .btn {
+            padding: 4px 8px;
+            background: var(--accent-primary);
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+
+        .btn:hover {
+            background: var(--accent-secondary);
+        }
+
+        .btn-secondary {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        .btn-secondary:hover {
+            background: var(--border-color);
+        }
+
+        /* Terminal */
+        .terminal-container {
+            width: 100%;
+            height: 100%;
+            background: #0c0c0c;
+            color: #cccccc;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            padding: 8px;
+            overflow-y: auto;
+        }
+
+        /* File Tree */
+        .file-tree-item {
+            display: flex;
+            align-items: center;
+            padding: 2px 4px;
+            cursor: pointer;
+            font-size: 13px;
+            border-radius: 3px;
+            transition: all 0.2s;
+        }
+
+        .file-tree-item:hover {
+            background: var(--bg-tertiary);
+        }
+
+        .file-tree-item i {
+            width: 16px;
+            height: 16px;
+            margin-right: 4px;
+            color: var(--text-secondary);
+        }
+
+        .file-tree-item.folder i {
+            color: var(--accent-warning);
+        }
+
+        .file-tree-item.file i {
+            color: var(--text-primary);
+        }
+
+        /* Extensions List */
+        .extension-item {
+            display: flex;
+            align-items: center;
+            padding: 8px;
+            border-radius: 4px;
+            margin-bottom: 4px;
+            background: var(--bg-tertiary);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .extension-item:hover {
+            background: var(--border-color);
+        }
+
+        .extension-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 4px;
+            background: var(--accent-primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 12px;
+            color: white;
+        }
+
+        .extension-info {
+            flex: 1;
+        }
+
+        .extension-name {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .extension-description {
+            font-size: 11px;
+            color: var(--text-secondary);
+            margin-top: 2px;
+        }
+
+        .extension-status {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--accent-success);
+        }
+
+        /* Modal */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .modal-content {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 20px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .modal-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .modal-close {
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            border-radius: 3px;
+            transition: all 0.2s;
+        }
+
+        .modal-close:hover {
+            background: var(--bg-tertiary);
+        }
+
+        .hidden {
+            display: none !important;
         }
     </style>
 </head>
-<body class="quantum-bg min-h-screen text-white">
-    <!-- Header -->
-    <header class="glass-effect border-b border-white/20">
-        <div class="container mx-auto px-4 py-4">
-            <div class="flex items-center justify-between">
-                <div class="flex items-center space-x-3">
-                    <div class="w-10 h-10 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
-                        <i data-lucide="brain" class="w-6 h-6"></i>
-                    </div>
-                    <h1 class="text-2xl font-bold">Penguin Alpha Enhanced IDE</h1>
-                </div>
-                <div class="flex items-center space-x-4">
-                    <span id="connection-status" class="flex items-center space-x-2">
-                        <div class="w-3 h-3 bg-red-500 rounded-full"></div>
-                        <span class="text-sm">Desconectado</span>
-                    </span>
-                    <button id="new-workspace" class="bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded-lg flex items-center space-x-2 transition">
-                        <i data-lucide="plus" class="w-4 h-4"></i>
-                        <span>Nuevo Workspace</span>
-                    </button>
-                </div>
+<body>
+    <div class="vscode-layout">
+        <!-- Activity Bar -->
+        <div class="activity-bar">
+            <div class="activity-item active" data-panel="explorer" title="Explorer">
+                <i data-lucide="files" class="w-5 h-5"></i>
+            </div>
+            <div class="activity-item" data-panel="search" title="Search">
+                <i data-lucide="search" class="w-5 h-5"></i>
+            </div>
+            <div class="activity-item" data-panel="source-control" title="Source Control">
+                <i data-lucide="git-branch" class="w-5 h-5"></i>
+            </div>
+            <div class="activity-item" data-panel="debug" title="Debug">
+                <i data-lucide="bug" class="w-5 h-5"></i>
+            </div>
+            <div class="activity-item" data-panel="extensions" title="Extensions">
+                <i data-lucide="puzzle" class="w-5 h-5"></i>
+            </div>
+            <div class="activity-item" data-panel="marketplace" title="Marketplace">
+                <i data-lucide="shopping-cart" class="w-5 h-5"></i>
+            </div>
+            <div class="activity-item" data-panel="pipeline" title="CI/CD Pipeline">
+                <i data-lucide="git-merge" class="w-5 h-5"></i>
+            </div>
+            <div class="activity-item" data-panel="total-access" title="Total Access">
+                <i data-lucide="shield" class="w-5 h-5"></i>
+            </div>
+            <div style="flex: 1;"></div>
+            <div class="activity-item" data-panel="settings" title="Settings">
+                <i data-lucide="settings" class="w-5 h-5"></i>
+            </div>
+            <div class="activity-item" data-panel="accounts" title="Accounts">
+                <i data-lucide="user" class="w-5 h-5"></i>
             </div>
         </div>
-    </header>
 
-    <!-- Main Content -->
-    <main class="container mx-auto px-4 py-6">
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <!-- Left Panel - File Explorer -->
-            <div class="lg:col-span-1">
-                <div class="glass-effect rounded-xl p-4">
-                    <h2 class="text-lg font-semibold mb-4 flex items-center">
-                        <i data-lucide="folder" class="w-5 h-5 mr-2"></i>
-                        Explorador de Archivos
-                    </h2>
-                    <div id="file-tree" class="space-y-2">
-                        <!-- Files will be loaded here -->
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <!-- Explorer Panel -->
+            <div id="explorer-panel" class="sidebar-panel">
+                <div class="sidebar-header">
+                    <span>EXPLORER</span>
+                    <div style="display: flex; gap: 4px;">
+                        <button class="btn btn-secondary" onclick="ide.createNewFile()" title="New File">
+                            <i data-lucide="file-plus" class="w-3 h-3"></i>
+                        </button>
+                        <button class="btn btn-secondary" onclick="ide.createNewFolder()" title="New Folder">
+                            <i data-lucide="folder-plus" class="w-3 h-3"></i>
+                        </button>
+                        <button class="btn btn-secondary" onclick="ide.refreshExplorer()" title="Refresh">
+                            <i data-lucide="refresh-cw" class="w-3 h-3"></i>
+                        </button>
                     </div>
                 </div>
-
-                <!-- AI Assistant Panel -->
-                <div class="glass-effect rounded-xl p-4 mt-6">
-                    <h2 class="text-lg font-semibold mb-4 flex items-center">
-                        <i data-lucide="sparkles" class="w-5 h-5 mr-2"></i>
-                        Asistente IA Cuántica
-                    </h2>
-                    <div class="space-y-3">
-                        <textarea id="ai-prompt" 
-                                  class="w-full p-3 rounded-lg bg-white/10 border border-white/20 text-white placeholder-white/50"
-                                  rows="3"
-                                  placeholder="Pide a Penguin Alpha que genere código..."></textarea>
-                        <div class="flex space-x-2">
-                            <button id="generate-code" class="flex-1 bg-blue-600 hover:bg-blue-700 px-3 py-2 rounded-lg text-sm transition">
-                                Generar Código
-                            </button>
-                            <button id="analyze-code" class="flex-1 bg-green-600 hover:bg-green-700 px-3 py-2 rounded-lg text-sm transition">
-                                Analizar Código
-                            </button>
+                <div class="sidebar-content">
+                    <div class="sidebar-section">
+                        <div class="sidebar-section-title">PROJECTS</div>
+                        <div id="projects-list">
+                            <div class="sidebar-item active">
+                                <i data-lucide="folder" class="w-4 h-4"></i>
+                                <span>Penguin Alpha IDE</span>
+                            </div>
                         </div>
-                        <div id="ai-response" class="p-3 rounded-lg bg-white/5 border border-white/10 text-sm hidden">
-                            <!-- AI response will appear here -->
+                    </div>
+                    <div class="sidebar-section">
+                        <div class="sidebar-section-title">OPEN EDITORS</div>
+                        <div id="open-editors">
+                            <div class="sidebar-item">
+                                <i data-lucide="file-text" class="w-4 h-4"></i>
+                                <span>index.html</span>
+                            </div>
+                            <div class="sidebar-item">
+                                <i data-lucide="file-text" class="w-4 h-4"></i>
+                                <span>app.js</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="sidebar-section">
+                        <div class="sidebar-section-title">FOLDERS</div>
+                        <div id="file-tree">
+                            <div class="file-tree-item folder">
+                                <i data-lucide="folder" class="w-4 h-4"></i>
+                                <span>frontend</span>
+                            </div>
+                            <div class="file-tree-item folder" style="margin-left: 16px;">
+                                <i data-lucide="folder" class="w-4 h-4"></i>
+                                <span>components</span>
+                            </div>
+                            <div class="file-tree-item file" style="margin-left: 32px;">
+                                <i data-lucide="file" class="w-4 h-4"></i>
+                                <span>Header.jsx</span>
+                            </div>
+                            <div class="file-tree-item file" style="margin-left: 32px;">
+                                <i data-lucide="file" class="w-4 h-4"></i>
+                                <span>Sidebar.jsx</span>
+                            </div>
+                            <div class="file-tree-item file" style="margin-left: 16px;">
+                                <i data-lucide="file" class="w-4 h-4"></i>
+                                <span>index.html</span>
+                            </div>
+                            <div class="file-tree-item file" style="margin-left: 16px;">
+                                <i data-lucide="file" class="w-4 h-4"></i>
+                                <span>app.js</span>
+                            </div>
+                            <div class="file-tree-item folder">
+                                <i data-lucide="folder" class="w-4 h-4"></i>
+                                <span>backend</span>
+                            </div>
+                            <div class="file-tree-item file" style="margin-left: 16px;">
+                                <i data-lucide="file" class="w-4 h-4"></i>
+                                <span>server.js</span>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Center Panel - Code Editor -->
-            <div class="lg:col-span-2">
-                <div class="glass-effect rounded-xl p-4">
-                    <div class="flex items-center justify-between mb-4">
-                        <h2 class="text-lg font-semibold flex items-center">
-                            <i data-lucide="code" class="w-5 h-5 mr-2"></i>
-                            Editor de Código
-                        </h2>
-                        <div class="flex items-center space-x-2">
-                            <select id="language-select" class="bg-white/10 border border-white/20 rounded px-3 py-1 text-sm">
-                                <option value="javascript">JavaScript</option>
-                                <option value="python">Python</option>
-                                <option value="html">HTML</option>
-                                <option value="css">CSS</option>
+            <!-- Search Panel -->
+            <div id="search-panel" class="sidebar-panel hidden">
+                <div class="sidebar-header">
+                    <span>SEARCH</span>
+                </div>
+                <div class="sidebar-content">
+                    <div style="padding: 8px;">
+                        <input type="text" id="file-search-input" placeholder="Search files..." class="w-full p-2 bg-tertiary border border-border-color rounded text-sm">
+                    </div>
+                    <div id="file-search-results" class="sidebar-section"></div>
+                </div>
+            </div>
+
+            <!-- Git Integration Panel -->
+            <div id="source-control-panel" class="sidebar-panel hidden">
+                <div class="sidebar-header">
+                    <span>SOURCE CONTROL</span>
+                    <div class="git-status">🔄 Modified</div>
+                </div>
+                <div class="sidebar-content">
+                    <div class="sidebar-section">
+                        <div class="sidebar-section-title">CHANGES</div>
+                        <div id="git-changes">
+                            <div class="sidebar-item">
+                                <i data-lucide="file-text" class="w-4 h-4"></i>
+                                <span>app.js (modified)</span>
+                            </div>
+                            <div class="sidebar-item">
+                                <i data-lucide="file-plus" class="w-4 h-4"></i>
+                                <span>themes.css (added)</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="sidebar-section">
+                        <div class="sidebar-section-title">ACTIONS</div>
+                        <button class="btn btn-secondary" onclick="ide.git.addFile()" style="width: 100%; margin-bottom: 4px;">
+                            <i data-lucide="plus" class="w-3 h-3"></i> Add All
+                        </button>
+                        <button class="btn" onclick="ide.git.commit()" style="width: 100%; margin-bottom: 4px;">
+                            <i data-lucide="git-commit" class="w-3 h-3"></i> Commit
+                        </button>
+                        <button class="btn btn-secondary" onclick="ide.git.push()" style="width: 100%;">
+                            <i data-lucide="upload" class="w-3 h-3"></i> Push
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Pipeline Panel -->
+            <div id="pipeline-panel" class="sidebar-panel hidden">
+                <div class="sidebar-header">
+                    <span>CI/CD PIPELINE</span>
+                    <div class="pipeline-status">✅ Ready</div>
+                </div>
+                <div class="sidebar-content">
+                    <div class="sidebar-section">
+                        <div class="sidebar-section-title">PIPELINES</div>
+                        <div class="sidebar-item" onclick="ide.pipeline.runPipeline('frontend')">
+                            <i data-lucide="play" class="w-4 h-4"></i>
+                            <span>Frontend Build</span>
+                        </div>
+                        <div class="sidebar-item" onclick="ide.pipeline.runPipeline('backend')">
+                            <i data-lucide="play" class="w-4 h-4"></i>
+                            <span>Backend Build</span>
+                        </div>
+                        <div class="sidebar-item" onclick="ide.pipeline.runPipeline('fullstack')">
+                            <i data-lucide="git-merge" class="w-4 h-4"></i>
+                            <span>Full Stack</span>
+                        </div>
+                    </div>
+                    <div class="sidebar-section">
+                        <div class="sidebar-section-title">STATUS</div>
+                        <div id="pipeline-status-display">
+                            <div class="sidebar-item">
+                                <i data-lucide="check-circle" class="w-4 h-4"></i>
+                                <span>No pipelines running</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Settings Panel -->
+            <div id="settings-panel" class="sidebar-panel hidden">
+                <div class="sidebar-header">
+                    <span>SETTINGS</span>
+                </div>
+                <div class="sidebar-content">
+                    <div class="sidebar-section">
+                        <div class="sidebar-section-title">THEMES</div>
+                        <div class="theme-selector">
+                            <select id="theme-selector" class="w-full bg-tertiary border border-border-color rounded p-2">
+                                <option value="dark">🌙 Dark</option>
+                                <option value="light">☀️ Light</option>
+                                <option value="high-contrast">👁️ High Contrast</option>
+                                <option value="minimal">🌸 Minimal</option>
+                                <option value="cyberpunk">🎨 Cyberpunk</option>
                             </select>
-                            <button id="run-code" class="bg-green-600 hover:bg-green-700 px-3 py-1 rounded-lg text-sm flex items-center space-x-1 transition">
-                                <i data-lucide="play" class="w-4 h-4"></i>
-                                <span>Ejecutar</span>
-                            </button>
-                            <button id="deploy-code" class="bg-purple-600 hover:bg-purple-700 px-3 py-1 rounded-lg text-sm flex items-center space-x-1 transition">
-                                <i data-lucide="rocket" class="w-4 h-4"></i>
-                                <span>Deploy</span>
-                            </button>
                         </div>
                     </div>
-                    
-                    <div class="space-y-4">
-                        <div class="code-editor rounded-lg p-4">
-                            <div class="flex items-center justify-between mb-2">
-                                <span id="current-file" class="text-sm text-gray-400">Sin archivo seleccionado</span>
-                                <button id="save-file" class="text-blue-400 hover:text-blue-300 text-sm">
-                                    <i data-lucide="save" class="w-4 h-4"></i>
-                                </button>
-                            </div>
-                            <textarea id="code-editor" 
-                                      class="w-full h-96 bg-transparent outline-none resize-none"
-                                      placeholder="// Escribe tu código aquí..."
-                                      spellcheck="false"></textarea>
+                    <div class="sidebar-section">
+                        <div class="sidebar-section-title">MODE</div>
+                        <div class="mode-selector">
+                            <select id="mode-selector" class="w-full bg-tertiary border border-border-color rounded p-2">
+                                <option value="normal">🎯 Normal</option>
+                                <option value="beginner">🌱 Beginner</option>
+                                <option value="advanced">🚀 Advanced</option>
+                            </select>
                         </div>
+                    </div>
+                    <div class="sidebar-section">
+                        <div class="sidebar-section-title">AUTOMATION</div>
+                        <label>
+                            <input type="checkbox" id="auto-commit"> Auto-commit on save
+                        </label>
+                        <label>
+                            <input type="checkbox" id="auto-pipeline"> Auto-run pipeline
+                        </label>
+                    </div>
+                    <div class="sidebar-section">
+                        <div class="sidebar-section-title">BACKEND</div>
+                        <div style="display:flex; gap:6px; align-items:center; margin-bottom:6px;">
+                            <input type="text" id="backend-url" placeholder="https://isen-ide-backend.onrender.com" class="w-full p-2 bg-tertiary border border-border-color rounded text-sm">
+                            <button class="btn btn-secondary" id="backend-save">Save</button>
+                        </div>
+                        <button class="btn btn-secondary" id="backend-test">Test Connection</button>
+                    </div>
+                    <div class="sidebar-section">
+                        <div class="sidebar-section-title">PERMISSIONS</div>
+                        <button class="btn btn-secondary" id="permissions-refresh" style="width: 100%; margin-bottom: 6px;">Load Permissions</button>
+                        <div id="permissions-view" class="code-font" style="font-size: 11px; color: var(--text-secondary); white-space: pre-wrap;"></div>
+                    </div>
+                    <div class="sidebar-section">
+                        <div class="sidebar-section-title">URL ACCESS</div>
+                        <div class="code-font" style="font-size: 11px; color: var(--text-secondary);">
+                            External URLs require confirmation.
+                        </div>
+                    </div>
+                    <div class="sidebar-section hidden" id="audit-section">
+                        <div class="sidebar-section-title">AUDIT</div>
+                        <button class="btn btn-secondary" id="audit-view" style="width: 100%; margin-bottom: 6px;">View Audit</button>
+                        <button class="btn btn-secondary" id="audit-clear" style="width: 100%;">Clear Audit</button>
+                    </div>
+                </div>
+            </div>
 
-                        <!-- Terminal Output -->
-                        <div class="terminal rounded-lg p-4">
-                            <div class="flex items-center justify-between mb-2">
-                                <span class="text-sm text-gray-400">Terminal</span>
-                                <button id="clear-terminal" class="text-gray-400 hover:text-gray-300 text-sm">
-                                    <i data-lucide="trash-2" class="w-4 h-4"></i>
-                                </button>
-                            </div>
-                            <div id="terminal-output" class="font-mono text-sm h-32 overflow-y-auto">
-                                <div class="text-gray-500">$ Terminal lista...</div>
-                            </div>
+            <!-- Debug Panel -->
+            <div id="debug-panel" class="sidebar-panel hidden">
+                <div class="sidebar-header">
+                    <span>DEBUG</span>
+                </div>
+                <div class="sidebar-content">
+                    <div class="sidebar-section">
+                        <div class="sidebar-section-title">VARIABLES</div>
+                        <div class="sidebar-item">
+                            <i data-lucide="database" class="w-4 h-4"></i>
+                            <span>Local Variables</span>
                         </div>
                     </div>
                 </div>
+            </div>
 
-                <!-- Collaboration Panel -->
-                <div class="glass-effect rounded-xl p-4 mt-6">
-                    <h2 class="text-lg font-semibold mb-4 flex items-center">
-                        <i data-lucide="users" class="w-5 h-5 mr-2"></i>
-                        Colaboración en Tiempo Real
-                    </h2>
-                    <div id="active-users" class="flex space-x-2">
-                        <!-- Active users will appear here -->
+            <!-- Extensions Panel -->
+            <div id="extensions-panel" class="sidebar-panel hidden">
+                <div class="sidebar-header">
+                    <span>EXTENSIONS</span>
+                    <input type="text" placeholder="Search extensions..." class="w-32 p-1 bg-tertiary border border-border-color rounded text-xs">
+                </div>
+                <div class="sidebar-content">
+                    <div id="extensions-list">
+                        <!-- Extensions will be loaded here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Total Access Panel -->
+            <div id="total-access-panel" class="sidebar-panel hidden">
+                <div class="sidebar-header">
+                    <span>TOTAL ACCESS</span>
+                </div>
+                <div class="sidebar-content">
+                    <div class="sidebar-section">
+                        <div class="sidebar-section-title">CONNECTIONS</div>
+                        <div class="sidebar-item" onclick="ide.connectWebAccess()">
+                            <i data-lucide="globe" class="w-4 h-4"></i>
+                            <span>Web Access</span>
+                        </div>
+                        <div class="sidebar-item" onclick="ide.connectServerAccess()">
+                            <i data-lucide="server" class="w-4 h-4"></i>
+                            <span>Server Access</span>
+                        </div>
+                        <div class="sidebar-item" onclick="ide.connectDatabase()">
+                            <i data-lucide="database" class="w-4 h-4"></i>
+                            <span>Database</span>
+                        </div>
+                        <div class="sidebar-item" onclick="ide.connectCloud()">
+                            <i data-lucide="cloud" class="w-4 h-4"></i>
+                            <span>Cloud Services</span>
+                        </div>
+                        <div class="sidebar-item" onclick="ide.connectAPI()">
+                            <i data-lucide="api" class="w-4 h-4"></i>
+                            <span>API Access</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Accounts Panel -->
+            <div id="accounts-panel" class="sidebar-panel hidden">
+                <div class="sidebar-header">
+                    <span>ACCOUNTS</span>
+                </div>
+                <div class="sidebar-content">
+                    <div class="sidebar-section">
+                        <div class="sidebar-section-title">SESSION</div>
+                        <div class="sidebar-item">
+                            <i data-lucide="user" class="w-4 h-4"></i>
+                            <span>Guest</span>
+                        </div>
+                    </div>
+                    <div class="sidebar-section">
+                        <div class="sidebar-section-title">ACTIONS</div>
+                        <button class="btn btn-secondary" onclick="ide.addChatMessage('🔐 Login not configured', 'System', 'system')" style="width: 100%; margin-bottom: 4px;">
+                            <i data-lucide="log-in" class="w-3 h-3"></i> Login
+                        </button>
+                        <button class="btn btn-secondary" onclick="ide.addChatMessage('✅ Logout complete', 'System', 'system')" style="width: 100%;">
+                            <i data-lucide="log-out" class="w-3 h-3"></i> Logout
+                        </button>
                     </div>
                 </div>
             </div>
         </div>
-    </main>
 
-    <!-- Modals -->
-    <div id="workspace-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden z-50">
-        <div class="flex items-center justify-center min-h-screen p-4">
-            <div class="glass-effect rounded-xl p-6 max-w-md w-full">
-                <h3 class="text-xl font-semibold mb-4">Crear Nuevo Workspace</h3>
-                <div class="space-y-4">
-                    <input type="text" id="workspace-name" placeholder="Nombre del workspace" 
-                           class="w-full p-3 rounded-lg bg-white/10 border border-white/20 text-white placeholder-white/50">
-                    <textarea id="workspace-description" placeholder="Descripción (opcional)" 
-                              class="w-full p-3 rounded-lg bg-white/10 border border-white/20 text-white placeholder-white/50"
-                              rows="3"></textarea>
-                    <div class="flex space-x-3">
-                        <button id="create-workspace" class="flex-1 bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded-lg transition">
-                            Crear
-                        </button>
-                        <button id="cancel-workspace" class="flex-1 bg-gray-600 hover:bg-gray-700 px-4 py-2 rounded-lg transition">
-                            Cancelar
-                        </button>
+        <!-- Main Editor Area -->
+        <div class="main-editor">
+            <!-- Editor Tabs -->
+            <div class="editor-tabs">
+                <div class="editor-tab active">
+                    <i data-lucide="file-text" class="w-3 h-3" style="margin-right: 4px;"></i>
+                    <span>index.html</span>
+                    <div class="editor-tab-close">
+                        <i data-lucide="x" class="w-3 h-3"></i>
                     </div>
+                </div>
+                <div class="editor-tab">
+                    <i data-lucide="file-text" class="w-3 h-3" style="margin-right: 4px;"></i>
+                    <span>app.js</span>
+                    <div class="editor-tab-close">
+                        <i data-lucide="x" class="w-3 h-3"></i>
+                    </div>
+                </div>
+                <div class="editor-tab">
+                    <i data-lucide="file-text" class="w-3 h-3" style="margin-right: 4px;"></i>
+                    <span>styles.css</span>
+                    <div class="editor-tab-close">
+                        <i data-lucide="x" class="w-3 h-3"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Editor Content -->
+            <div class="editor-content">
+                <div class="editor-main">
+                    <div id="monaco-editor" style="width: 100%; height: 100%;"></div>
+                </div>
+            </div>
+
+            <!-- Bottom Panel -->
+            <div class="bottom-panel">
+                <div class="panel-tabs">
+                    <div class="panel-tab active" data-panel="terminal">
+                        <i data-lucide="terminal" class="w-3 h-3" style="margin-right: 4px;"></i>
+                        <span>TERMINAL</span>
+                    </div>
+                    <div class="panel-tab" data-panel="problems">
+                        <i data-lucide="alert-circle" class="w-3 h-3" style="margin-right: 4px;"></i>
+                        <span>PROBLEMS</span>
+                    </div>
+                    <div class="panel-tab" data-panel="output">
+                        <i data-lucide="output" class="w-3 h-3" style="margin-right: 4px;"></i>
+                        <span>OUTPUT</span>
+                    </div>
+                    <div class="panel-tab" data-panel="debug-console">
+                        <i data-lucide="bug" class="w-3 h-3" style="margin-right: 4px;"></i>
+                        <span>DEBUG CONSOLE</span>
+                    </div>
+                </div>
+                <div class="panel-content">
+                    <div id="terminal-panel" class="panel-content-section">
+                        <div id="terminal-container" class="terminal-container">
+                            <div>$ Welcome to Penguin Alpha Ultra IDE Terminal</div>
+                            <div>$ Type 'help' for available commands</div>
+                            <div>$ </div>
+                        </div>
+                    </div>
+                    <div id="problems-panel" class="panel-content-section hidden">
+                        <div style="padding: 12px; color: var(--text-secondary);">
+                            No problems detected
+                        </div>
+                    </div>
+                    <div id="output-panel" class="panel-content-section hidden">
+                        <div style="padding: 12px; color: var(--text-secondary);">
+                            Build completed successfully
+                        </div>
+                    </div>
+                    <div id="debug-console-panel" class="panel-content-section hidden">
+                        <div style="padding: 12px; color: var(--text-secondary);">
+                            Debug console ready
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Panel - Chat -->
+        <div class="right-panel">
+            <div class="chat-header">
+                <i data-lucide="message-circle" class="w-4 h-4" style="margin-right: 8px;"></i>
+                <span>AI Assistant</span>
+                <div style="flex: 1;"></div>
+                <select id="ai-model-selector" class="bg-tertiary border border-border-color rounded text-xs px-2 py-1">
+                    <option value="penguin-alpha">🐧 Penguin Alpha</option>
+                    <option value="copilot">🤖 GitHub Copilot</option>
+                    <option value="superdev">⚡ SuperDev Agent</option>
+                    <option value="multiverse">🌍 Multiverse</option>
+                </select>
+                <button class="btn btn-secondary" onclick="ide.clearChat()" style="margin-left: 8px;">
+                    <i data-lucide="trash-2" class="w-3 h-3"></i>
+                </button>
+            </div>
+            
+            <div class="chat-messages" id="chat-messages">
+                <!-- Welcome Message -->
+                <div class="chat-message ai">
+                    <div class="message-avatar ai">
+                        <i data-lucide="bot" class="w-3 h-3"></i>
+                    </div>
+                    <div class="message-content">
+                        <div class="message-header">
+                            <span>AI Assistant</span>
+                            <span>Just now</span>
+                        </div>
+                        <div class="message-text">
+                            🚀 Welcome to Penguin Alpha Ultra IDE! I'm here to help you with coding, debugging, deployment, and more. What would you like to work on today?
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="chat-input-area">
+                <div class="chat-input-wrapper">
+                    <input type="text" id="chat-input" class="chat-input" placeholder="Ask AI anything...">
+                    <div class="chat-send-btn" onclick="ide.sendMessage()">
+                        <i data-lucide="send" class="w-4 h-4"></i>
+                    </div>
+                </div>
+                <div style="display: flex; justify-content: space-between; margin-top: 4px; font-size: 10px; color: var(--text-secondary);">
+                    <span>Connected • 6 models • 17 extensions</span>
+                    <span>Response: ~1.2s</span>
                 </div>
             </div>
         </div>
     </div>
 
+    <!-- Status Bar -->
+        <div class="status-bar">
+            <div class="status-item">
+                <i data-lucide="git-branch" class="w-3 h-3"></i>
+                <span>main</span>
+            </div>
+            <div class="status-item">
+                <i data-lucide="sync" class="w-3 h-3"></i>
+                <span>0↓ 0↑</span>
+            </div>
+            <div class="status-item">
+                <i data-lucide="globe" class="w-3 h-3"></i>
+                <span id="connection-status">Offline</span>
+            </div>
+            <div class="status-item">
+                <i data-lucide="alert-circle" class="w-3 h-3"></i>
+                <span>0</span>
+            </div>
+        <div class="status-item" style="flex: 1; justify-content: flex-end;">
+            <span>Ln 1, Col 1</span>
+        </div>
+        <div class="status-item">
+            <span>Spaces: 2</span>
+        </div>
+        <div class="status-item">
+            <span>UTF-8</span>
+        </div>
+        <div class="status-item">
+            <span>JavaScript</span>
+        </div>
+        <div class="status-item">
+            <i data-lucide="bell" class="w-3 h-3"></i>
+        </div>
+    </div>
+
+    <!-- Modals -->
+    <div id="new-file-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">New File</h3>
+                <div class="modal-close" onclick="ide.closeModal('new-file-modal')">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </div>
+            </div>
+            <div style="margin-bottom: 16px;">
+                <label style="display: block; margin-bottom: 8px; font-size: 13px; color: var(--text-secondary);">File Name</label>
+                <input type="text" id="new-file-name" class="w-full p-2 bg-tertiary border border-border-color rounded text-sm" placeholder="example.js">
+            </div>
+            <div style="display: flex; justify-content: flex-end; gap: 8px;">
+                <button class="btn btn-secondary" onclick="ide.closeModal('new-file-modal')">Cancel</button>
+                <button class="btn" onclick="ide.createFile()">Create</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="new-folder-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">New Folder</h3>
+                <div class="modal-close" onclick="ide.closeModal('new-folder-modal')">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </div>
+            </div>
+            <div style="margin-bottom: 16px;">
+                <label style="display: block; margin-bottom: 8px; font-size: 13px; color: var(--text-secondary);">Folder Name</label>
+                <input type="text" id="new-folder-name" class="w-full p-2 bg-tertiary border border-border-color rounded text-sm" placeholder="New Folder">
+            </div>
+            <div style="display: flex; justify-content: flex-end; gap: 8px;">
+                <button class="btn btn-secondary" onclick="ide.closeModal('new-folder-modal')">Cancel</button>
+                <button class="btn" onclick="ide.createFolder()">Create</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        window.__BACKEND_URL__ = localStorage.getItem('backend-url') || '';
+    </script>
     <script src="/app.js"></script>
 </body>
 </html>

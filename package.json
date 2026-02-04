@@ -5,9 +5,12 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
+    "start:3777": "set PORT=3777&& node server.js",
     "dev": "nodemon server.js",
     "build": "echo \"Build completed\"",
     "test": "echo \"Tests completed\"",
+    "audit:e2e": "node scripts/e2e-audit.js",
+    "audit:e2e:3777": "set AUDIT_BASE_URL=http://localhost:3777&& node scripts/e2e-audit.js",
     "setup": "npm install && mkdir -p workspaces public uploads"
   },
   "keywords": [
@@ -25,6 +28,7 @@
     "chokidar": "^4.0.1",
     "cors": "^2.8.5",
     "debug": "^4.4.0",
+    "dotenv": "^16.4.5",
     "express": "^4.21.2",
     "multer": "^1.4.5-lts.1",
     "serverless-http": "^4.0.0",

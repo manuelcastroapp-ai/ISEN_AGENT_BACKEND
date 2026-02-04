@@ -1,1 +1,22 @@
 node_modules/
+dist/
+build/
+
+# Local Netlify/Vercel folders
+.netlify
+.vercel
+
+# Env / secrets
+.env
+.env.*
+*.env
+github-token
+
+# Runtime data
+workspaces/
+uploads/
+logs/
+
+# OS / IDE
+.DS_Store
+.idea/

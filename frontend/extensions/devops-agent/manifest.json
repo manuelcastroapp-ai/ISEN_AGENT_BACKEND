@@ -1,0 +1,11 @@
+{
+  "id": "devops-agent",
+  "name": "DevOps Agent",
+  "version": "1.0.0",
+  "description": "CI/CD templates, deploy scripts, and status checks.",
+  "author": "ISEN",
+  "category": "Agents",
+  "price": "$15/mo",
+  "permissions": ["read", "terminal"],
+  "hooks": ["onRun"]
+}
