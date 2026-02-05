@@ -98,14 +98,21 @@ class PenguinAlphaServer {
     });
 
     // API Health check
-    this.app.get('/api/health', (req, res) => {
+    this.app.get('/api/health', async (req, res) => {
+      let llm = null;
+      try {
+        llm = await this.llm.health();
+      } catch (error) {
+        llm = { ok: false, error: error.message };
+      }
       res.json({
         status: 'healthy',
         timestamp: new Date().toISOString(),
         model: this.penguinModel ? 'active' : 'inactive',
         deployment: this.deploymentExpert ? 'active' : 'inactive',
         workspaces: this.workspaces.size,
-        uptime: process.uptime()
+        uptime: process.uptime(),
+        llm
       });
     });
 
@@ -208,7 +215,7 @@ class PenguinAlphaServer {
         const reply = await this.chatWithAI(data.message);
         socket.emit('chat_response', {
           sender: 'AI',
-          message: reply
+          message: reply.ok ? reply.content : (reply.error || 'LLM unavailable')
         });
       });
 
@@ -1090,15 +1097,21 @@ class PenguinAlphaServer {
       { role: 'user', content: String(message || '') }
     ], { temperature: 0.3, max_tokens: 800 });
 
-    if (!reply.ok) return reply.error;
-    return reply.content;
+    if (!reply.ok) {
+      return { ok: false, error: reply.error || 'LLM unavailable' };
+    }
+    return { ok: true, content: reply.content };
   }
 
   async chatEndpoint(req, res) {
     try {
       const { message } = req.body;
       const reply = await this.chatWithAI(message);
-      res.json({ reply });
+      if (reply.ok) {
+        res.json({ reply: reply.content });
+      } else {
+        res.status(503).json({ error: reply.error || 'LLM unavailable' });
+      }
     } catch (error) {
       res.status(500).json({ error: error.message });
     }
@@ -1125,7 +1138,7 @@ class PenguinAlphaServer {
 
       if (this.llm.isEnabled()) {
         const aiReply = await this.chatWithAI('Ping');
-        result.checks.push({ name: 'ai:chat', ok: Boolean(aiReply) });
+        result.checks.push({ name: 'ai:chat', ok: aiReply.ok });
       } else {
         result.checks.push({ name: 'ai:chat', ok: false, note: 'LLM not configured' });
       }

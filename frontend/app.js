@@ -286,8 +286,18 @@ class PenguinAlphaUltraIDE {
             backendTest.addEventListener('click', async () => {
                 try {
                     const res = await fetch(this.apiUrl('/api/health'));
+                    const data = await res.json().catch(() => null);
                     if (res.ok) {
                         this.addChatMessage('✅ Backend is reachable', 'System', 'system');
+                        if (data?.llm) {
+                            const llm = data.llm;
+                            const model = llm.model ? ` (${llm.model})` : '';
+                            if (llm.ok) {
+                                this.addChatMessage(`🤖 AI ready: ${llm.provider}${model}`, 'System', 'system');
+                            } else {
+                                this.addChatMessage(`⚠️ AI offline: ${llm.error || 'not available'}`, 'System', 'system');
+                            }
+                        }
                     } else {
                         this.addChatMessage(`⚠️ Backend error: ${res.status}`, 'System', 'system');
                     }
