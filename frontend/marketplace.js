@@ -5,21 +5,21 @@ class ExtensionMarketplace {
         this.ide = ide;
         this.installedExtensions = new Map();
         this.availableExtensions = [];
-        this.categories = ['Development', 'Themes', 'Productivity', 'AI', 'Debugging', 'Git', 'Agents'];
+        this.categories = ['Development', 'Themes', 'Productivity', 'AI', 'Debugging', 'Git', 'Agents', 'Tools', 'Protocols', 'Integrations'];
         this.initialize();
     }
 
     // 🚀 Initialize Marketplace
     async initialize() {
-        this.loadAvailableExtensions();
+        await this.loadAvailableExtensions();
         this.loadInstalledExtensions();
         this.setupMarketplaceUI();
         this.ide.addChatMessage('🛍️ Extension Marketplace initialized', 'Marketplace', 'system');
     }
 
     // 📦 Load Available Extensions
-    loadAvailableExtensions() {
-        this.availableExtensions = [
+    async loadAvailableExtensions() {
+        const fallback = [
             // Development Extensions
             {
                 id: 'prettier',
@@ -226,8 +226,170 @@ class ExtensionMarketplace {
                 icon: 'rocket',
                 tags: ['agent', 'devops', 'cicd', 'deploy'],
                 features: ['Pipeline generator', 'Deploy checklists', 'Infra tips']
+            },
+            {
+                id: 'quantum-agent',
+                name: 'Quantum Agent',
+                description: 'Quantum reasoning, superposition, and prediction.',
+                category: 'Agents',
+                author: 'ISEN',
+                version: '1.0.0',
+                rating: 4.8,
+                downloads: 420,
+                price: '$18/mo',
+                icon: 'cpu',
+                tags: ['agent', 'quantum', 'analysis'],
+                features: ['Quantum reasoning', 'Superposition analysis', 'Probabilistic prediction']
+            },
+            {
+                id: 'spatial-agent',
+                name: 'Spatial Agent',
+                description: '3D mapping, holography, and spatial insights.',
+                category: 'Agents',
+                author: 'ISEN',
+                version: '1.0.0',
+                rating: 4.7,
+                downloads: 310,
+                price: '$14/mo',
+                icon: 'layout',
+                tags: ['agent', 'spatial', 'visualization'],
+                features: ['3D mapping', 'Holographic projection', 'Spatial visualization']
+            },
+            {
+                id: 'alchemical-agent',
+                name: 'Alchemical Agent',
+                description: 'Transmutation workflows and symbolic rituals.',
+                category: 'Agents',
+                author: 'ISEN',
+                version: '1.0.0',
+                rating: 4.6,
+                downloads: 260,
+                price: '$16/mo',
+                icon: 'sparkles',
+                tags: ['agent', 'alchemy', 'rituals'],
+                features: ['Transmutation process', 'Ritual design', 'Symbol generator']
+            },
+            {
+                id: 'terra-agent',
+                name: 'Terra Agent',
+                description: 'Collective awareness and planetary alignment.',
+                category: 'Agents',
+                author: 'ISEN',
+                version: '1.0.0',
+                rating: 4.7,
+                downloads: 280,
+                price: '$20/mo',
+                icon: 'globe',
+                tags: ['agent', 'terra', 'consciousness'],
+                features: ['Gaia sync', 'Collective alignment', 'Impact guidance']
+            },
+            {
+                id: 'self-dev-agent',
+                name: 'Self Dev Agent',
+                description: 'Project scanning, readiness scoring, and planning.',
+                category: 'Agents',
+                author: 'ISEN',
+                version: '1.0.0',
+                rating: 4.9,
+                downloads: 540,
+                price: '$25/mo',
+                icon: 'brain',
+                tags: ['agent', 'planning', 'audit'],
+                features: ['Project scan', 'Readiness scoring', 'Roadmap planning']
+            },
+            {
+                id: 'fractal-designer',
+                name: 'Fractal Designer',
+                description: 'Generate fractal patterns and templates.',
+                category: 'Tools',
+                author: 'ISEN',
+                version: '1.0.0',
+                rating: 4.5,
+                downloads: 180,
+                price: '$6/mo',
+                icon: 'eye',
+                tags: ['tool', 'fractal', 'design'],
+                features: ['Pattern generator', 'Export presets', 'Style variants']
+            },
+            {
+                id: 'neural-synth',
+                name: 'Neural Synth',
+                description: 'Design neural networks and ML blueprints.',
+                category: 'Tools',
+                author: 'ISEN',
+                version: '1.0.0',
+                rating: 4.6,
+                downloads: 210,
+                price: '$12/mo',
+                icon: 'zap',
+                tags: ['tool', 'ml', 'neural'],
+                features: ['Network designer', 'Layer presets', 'Complexity tuning']
+            },
+            {
+                id: 'holographic-renderer',
+                name: 'Holographic Renderer',
+                description: 'Render holographic scenes and visuals.',
+                category: 'Tools',
+                author: 'ISEN',
+                version: '1.0.0',
+                rating: 4.4,
+                downloads: 160,
+                price: '$10/mo',
+                icon: 'image',
+                tags: ['tool', 'render', 'visual'],
+                features: ['Volumetric renderer', 'Layer control', 'Scene presets']
             }
         ];
+
+        this.fallbackExtensions = fallback;
+        try {
+            const res = await fetch(this.ide.apiUrl('/api/marketplace/extensions'));
+            if (res.ok) {
+                const data = await res.json();
+                this.availableExtensions = this.mergeExtensions(data, fallback);
+                return;
+            }
+        } catch (error) {
+            // fallback to local catalog
+        }
+        this.availableExtensions = fallback;
+    }
+
+    mergeExtensions(remote, fallback) {
+        const fallbackMap = new Map(fallback.map(entry => [entry.id, entry]));
+        const merged = [];
+        if (Array.isArray(remote) && remote.length) {
+            remote.forEach(entry => {
+                const base = fallbackMap.get(entry.id) || {};
+                const category = entry.category || base.category || this.guessCategory(entry.id);
+                merged.push({
+                    ...base,
+                    ...entry,
+                    category,
+                    author: entry.author || base.author || 'ISEN',
+                    version: entry.version || base.version || '1.0.0',
+                    rating: entry.rating || base.rating || 4.5,
+                    downloads: entry.downloads || base.downloads || 0,
+                    icon: entry.icon || base.icon || 'cpu',
+                    tags: entry.tags || base.tags || [category.toLowerCase()],
+                    features: entry.features || base.features || []
+                });
+            });
+        }
+        fallback.forEach(entry => {
+            if (!merged.some(item => item.id === entry.id)) {
+                merged.push(entry);
+            }
+        });
+        return merged;
+    }
+
+    guessCategory(id) {
+        const value = String(id || '').toLowerCase();
+        if (value.includes('agent')) return 'Agents';
+        if (value.includes('protocol')) return 'Protocols';
+        if (value.includes('bridge') || value.includes('integration')) return 'Integrations';
+        return 'Tools';
     }
 
     // 📦 Load Installed Extensions
@@ -332,6 +494,7 @@ class ExtensionMarketplace {
             const card = this.createExtensionCard(extension);
             grid.appendChild(card);
         });
+        this.ide.safeCreateIcons();
     }
 
     // 🎴 Create Extension Card
@@ -341,6 +504,7 @@ class ExtensionMarketplace {
         card.dataset.extensionId = extension.id;
 
         const isInstalled = this.installedExtensions.has(extension.id);
+        const canOpen = isInstalled && this.ide.extensionHost && this.ide.extensionHost.registry && this.ide.extensionHost.registry.has(extension.id);
 
         card.innerHTML = `
             <div class="extension-header">
@@ -379,7 +543,7 @@ class ExtensionMarketplace {
                         <i data-lucide="download" class="w-4 h-4"></i> Install
                     </button>`
                 }
-                ${isInstalled && extension.category === 'Agents' ? 
+                ${canOpen ? 
                     `<button class="btn" onclick="ide.extensionHost.openPanel('${extension.id}')">
                         <i data-lucide="panel-right" class="w-4 h-4"></i> Open
                     </button>` : ''
@@ -464,6 +628,10 @@ class ExtensionMarketplace {
                 'system'
             );
 
+            if (this.ide.extensionHost && this.ide.extensionHost.registry && this.ide.extensionHost.registry.has(extensionId)) {
+                this.ide.extensionHost.install(extensionId);
+            }
+
             // Activate extension features
             this.activateExtension(extension);
         }, 2000);
@@ -495,6 +663,7 @@ class ExtensionMarketplace {
 
     // 🔄 Activate Extension
     activateExtension(extension) {
+        const canActivate = this.ide.extensionHost && this.ide.extensionHost.registry && this.ide.extensionHost.registry.has(extension.id);
         switch (extension.id) {
             case 'prettier':
                 this.ide.addChatMessage('🎨 Prettier activated: Auto-format on save enabled', 'Extension', 'system');
@@ -517,7 +686,12 @@ class ExtensionMarketplace {
                 }
                 break;
             default:
-                this.ide.addChatMessage(`✨ ${extension.name} activated`, 'Extension', 'system');
+                if (canActivate) {
+                    this.ide.extensionHost.activate(extension.id);
+                    this.ide.addChatMessage(`🤖 ${extension.name} activated`, 'Extension', 'system');
+                } else {
+                    this.ide.addChatMessage(`✨ ${extension.name} activated`, 'Extension', 'system');
+                }
         }
     }
 
@@ -551,22 +725,37 @@ ${extension.tags.map(tag => `#${tag}`).join(', ')}
         this.ide.addChatMessage(details, extension.name, 'system');
     }
 
-    // 💳 Buy Extension (local license)
-    buy(extensionId) {
-        const extension = this.availableExtensions.find(ext => ext.id === extensionId);
-        if (!extension || !this.ide.extensionHost) return;
-        this.ide.extensionHost.grantLicense(extensionId, 'paid');
-        this.ide.addChatMessage(`💳 License activated for ${extension.name}`, 'Marketplace', 'system');
-        this.createExtensionCards();
+    // 💳 Buy Extension
+    async buy(extensionId) {
+        await this.activateLicense(extensionId, 'paid');
     }
 
     // 🧪 Start Trial
-    startTrial(extensionId) {
+    async startTrial(extensionId) {
+        await this.activateLicense(extensionId, 'trial');
+    }
+
+    async activateLicense(extensionId, type) {
         const extension = this.availableExtensions.find(ext => ext.id === extensionId);
-        if (!extension || !this.ide.extensionHost) return;
-        this.ide.extensionHost.grantLicense(extensionId, 'trial');
-        this.ide.addChatMessage(`🧪 Trial activated for ${extension.name}`, 'Marketplace', 'system');
-        this.createExtensionCards();
+        if (!extension) return;
+        try {
+            const res = await fetch(this.ide.apiUrl('/api/licenses/activate'), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: extensionId, type })
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                throw new Error(data?.error || `Request failed (${res.status})`);
+            }
+            if (this.ide.extensionHost) {
+                this.ide.extensionHost.grantLicense(extensionId, data.type || type);
+            }
+            this.ide.addChatMessage(`💳 License activated for ${extension.name}`, 'Marketplace', 'system');
+            this.createExtensionCards();
+        } catch (error) {
+            this.ide.addChatMessage(`❌ License error: ${error.message}`, 'Marketplace', 'system');
+        }
     }
 
     // 💾 Save Installed Extensions

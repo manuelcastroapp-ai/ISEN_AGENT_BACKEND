@@ -17,6 +17,54 @@
       "name": "DevOps Agent",
       "price": "$15/mo",
       "entry": "main.js"
+    },
+    {
+      "id": "quantum-agent",
+      "name": "Quantum Agent",
+      "price": "$18/mo",
+      "entry": "main.js"
+    },
+    {
+      "id": "spatial-agent",
+      "name": "Spatial Agent",
+      "price": "$14/mo",
+      "entry": "main.js"
+    },
+    {
+      "id": "alchemical-agent",
+      "name": "Alchemical Agent",
+      "price": "$16/mo",
+      "entry": "main.js"
+    },
+    {
+      "id": "terra-agent",
+      "name": "Terra Agent",
+      "price": "$20/mo",
+      "entry": "main.js"
+    },
+    {
+      "id": "self-dev-agent",
+      "name": "Self Dev Agent",
+      "price": "$25/mo",
+      "entry": "main.js"
+    },
+    {
+      "id": "fractal-designer",
+      "name": "Fractal Designer",
+      "price": "$6/mo",
+      "entry": "main.js"
+    },
+    {
+      "id": "neural-synth",
+      "name": "Neural Synth",
+      "price": "$12/mo",
+      "entry": "main.js"
+    },
+    {
+      "id": "holographic-renderer",
+      "name": "Holographic Renderer",
+      "price": "$10/mo",
+      "entry": "main.js"
     }
   ]
 }

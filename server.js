@@ -20,6 +20,10 @@ const fsSync = require('fs');
 const PenguinAlphaEnhanced = require('./penguin-alpha-enhanced');
 const DeploymentExpert = require('./deployment-expert');
 const LLMClient = require('./llm-client');
+const IdeRegistry = require('./services/agent-registry');
+const { StateStore } = require('./services/state-store');
+const { createMcpServer } = require('./services/mcp-server');
+const { StreamableHTTPServerTransport } = require('@modelcontextprotocol/sdk/server/streamableHttp');
 
 class PenguinAlphaServer {
   constructor() {
@@ -40,6 +44,18 @@ class PenguinAlphaServer {
     this.codeExecution = new Map();
     this.lastAudit = null;
     this.permissions = this.loadAgentPermissions();
+    this.stateStore = new StateStore({
+      filePath: path.join(__dirname, 'data', 'ide-state.json')
+    });
+    this.state = null;
+    this.llm = new LLMClient();
+    this.registry = new IdeRegistry({
+      llm: this.llm,
+      permissions: this.permissions,
+      rootDir: __dirname
+    });
+    this.executionEnabled = process.env.EXECUTION_ENABLED !== 'false';
+    this.executionTimeoutMs = Number(process.env.EXECUTION_TIMEOUT_MS || 30000);
     
     // Inicializar modelo IA
     this.penguinModel = new PenguinAlphaEnhanced({
@@ -47,15 +63,14 @@ class PenguinAlphaServer {
       learningRate: 0.1,
       adaptationFactor: 0.05
     });
-    
-    this.llm = new LLMClient();
+
     this.deploymentExpert = new DeploymentExpert(this.penguinModel);
     
     this.setupMiddleware();
     this.setupRoutes();
     this.setupWebSocket();
     this.setupFileWatcher();
-    this.initializeModel();
+    this.bootstrapPromise = this.bootstrap();
   }
 
   /**
@@ -141,6 +156,20 @@ class PenguinAlphaServer {
     this.app.post('/api/ai/deploy', this.deployProject.bind(this));
     this.app.post('/api/ai/chat', this.chatEndpoint.bind(this));
 
+    // Agents & Tools
+    this.app.get('/api/agents', this.getAgents.bind(this));
+    this.app.post('/api/agents/:id/run', this.runAgent.bind(this));
+    this.app.get('/api/tools', this.getTools.bind(this));
+    this.app.post('/api/tools/:id/run', this.runTool.bind(this));
+    this.app.get('/api/protocols', this.getProtocols.bind(this));
+    this.app.post('/api/protocols/:id/run', this.runProtocol.bind(this));
+    this.app.get('/api/integrations', this.getIntegrations.bind(this));
+    this.app.post('/api/integrations/:id/run', this.runIntegration.bind(this));
+
+    // Self Dev
+    this.app.post('/api/self-dev/scan', this.selfDevScan.bind(this));
+    this.app.post('/api/self-dev/plan', this.selfDevPlan.bind(this));
+
     // Audits
     this.app.post('/api/audit/e2e', this.runE2EAudit.bind(this));
     this.app.get('/api/audit/status', this.getAuditStatus.bind(this));
@@ -166,6 +195,18 @@ class PenguinAlphaServer {
     this.app.get('/api/marketplace/components', this.getMarketplaceComponents.bind(this));
     this.app.post('/api/marketplace/components', this.createMarketplaceComponent.bind(this));
     this.app.get('/api/marketplace/components/:id', this.getMarketplaceComponent.bind(this));
+    this.app.get('/api/marketplace/extensions', this.getMarketplaceExtensions.bind(this));
+    this.app.post('/api/marketplace/extensions', this.createMarketplaceExtension.bind(this));
+
+    // Billing & Licenses
+    this.app.get('/api/billing/plans', this.getBillingPlans.bind(this));
+    this.app.get('/api/billing/status', this.getBillingStatus.bind(this));
+    this.app.post('/api/billing/activate', this.activateBillingPlan.bind(this));
+    this.app.get('/api/licenses', this.getLicenses.bind(this));
+    this.app.post('/api/licenses/activate', this.activateLicense.bind(this));
+
+    // MCP HTTP
+    this.app.post('/mcp', this.handleMcpRequest.bind(this));
 
     // Serve frontend fallback
     this.app.get('*', (req, res) => {
@@ -262,6 +303,47 @@ class PenguinAlphaServer {
   }
 
   /**
+   * 🚀 Bootstrap de servicios
+   */
+  async bootstrap() {
+    try {
+      await this.ensureDirectories();
+      await this.loadState();
+      await this.registry.initialize();
+      await this.initializeModel();
+    } catch (error) {
+      console.error('❌ Error en bootstrap:', error);
+    }
+  }
+
+  async ensureDirectories() {
+    const dirs = ['workspaces', 'uploads', 'public', 'data'];
+    for (const dir of dirs) {
+      await fs.mkdir(path.join(__dirname, dir), { recursive: true });
+    }
+  }
+
+  async loadState() {
+    this.state = await this.stateStore.load();
+    this.workspaces = new Map(Object.entries(this.state.workspaces || {}));
+    this.activeProjects = new Map(Object.entries(this.state.projects || {}));
+    this.lastAudit = this.state.audit?.lastResult || null;
+  }
+
+  async persistState() {
+    if (!this.state) {
+      this.state = await this.stateStore.load();
+    }
+    this.state.workspaces = Object.fromEntries(this.workspaces.entries());
+    this.state.projects = Object.fromEntries(this.activeProjects.entries());
+    this.state.audit = {
+      lastRun: this.lastAudit?.startedAt || null,
+      lastResult: this.lastAudit || null
+    };
+    await this.stateStore.save(this.state);
+  }
+
+  /**
    * 🧠 Inicializar modelo IA
    */
   async initializeModel() {
@@ -342,6 +424,7 @@ class PenguinAlphaServer {
       }
 
       this.workspaces.set(workspaceId, workspace);
+      await this.persistState();
       res.json(workspace);
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -378,7 +461,8 @@ class PenguinAlphaServer {
       
       // Eliminar directorio
       const workspacePath = path.join(__dirname, 'workspaces', id);
-      await fs.rmdir(workspacePath, { recursive: true });
+      await fs.rm(workspacePath, { recursive: true, force: true });
+      await this.persistState();
       
       res.json({ message: 'Workspace eliminado' });
     } catch (error) {
@@ -471,6 +555,7 @@ class PenguinAlphaServer {
       }
       
       workspace.updatedAt = new Date().toISOString();
+      await this.persistState();
       
       // Notificar cambios
       this.io.to(id).emit('file-created', { path: filePath, type });
@@ -500,6 +585,7 @@ class PenguinAlphaServer {
       await fs.writeFile(fullPath, content);
       
       workspace.updatedAt = new Date().toISOString();
+      await this.persistState();
       
       // Notificar cambios en tiempo real
       this.io.to(id).emit('file-updated', { path: filePath, content });
@@ -528,6 +614,7 @@ class PenguinAlphaServer {
       await fs.unlink(fullPath);
       
       workspace.updatedAt = new Date().toISOString();
+      await this.persistState();
       
       // Notificar cambios
       this.io.to(id).emit('file-deleted', { path: filePath });
@@ -569,6 +656,9 @@ class PenguinAlphaServer {
   async executeCode(req, res) {
     try {
       const { code, language, workspaceId } = req.body;
+      if (!this.executionEnabled) {
+        return res.status(403).json({ error: 'Ejecucion deshabilitada' });
+      }
       const allowed = new Set(['javascript', 'python', 'bash']);
       if (!allowed.has(language)) {
         return res.status(400).json({ error: 'Lenguaje no soportado' });
@@ -595,7 +685,7 @@ class PenguinAlphaServer {
       this.codeExecution.set(executionId, execution);
       
       // Ejecutar en proceso separado
-      exec(command, { timeout: 30000 }, (error, stdout, stderr) => {
+      exec(command, { timeout: this.executionTimeoutMs }, (error, stdout, stderr) => {
         execution.status = error ? 'error' : 'completed';
         execution.endTime = new Date().toISOString();
         execution.output = stdout;
@@ -881,6 +971,7 @@ class PenguinAlphaServer {
       };
       
       this.activeProjects.set(projectId, project);
+      await this.persistState();
       res.json(project);
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -921,6 +1012,7 @@ class PenguinAlphaServer {
       Object.assign(project, updates);
       project.updatedAt = new Date().toISOString();
       
+      await this.persistState();
       res.json(project);
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -934,6 +1026,7 @@ class PenguinAlphaServer {
     try {
       const { id } = req.params;
       this.activeProjects.delete(id);
+      await this.persistState();
       res.json({ message: 'Proyecto eliminado' });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -970,29 +1063,7 @@ class PenguinAlphaServer {
    */
   async getMarketplaceComponents(req, res) {
     try {
-      const components = [
-        {
-          id: 'quantum-button',
-          name: 'Quantum Button',
-          description: 'Botón con efectos cuánticos',
-          category: 'ui',
-          code: 'export const QuantumButton = () => <button className="quantum-btn">Click Me</button>',
-          author: 'Penguin Alpha',
-          downloads: 150,
-          rating: 4.8
-        },
-        {
-          id: 'ai-form',
-          name: 'AI Form Generator',
-          description: 'Generador de formularios con IA',
-          category: 'form',
-          code: 'export const AIForm = () => <form className="ai-form"><!-- AI Generated --></form>',
-          author: 'Penguin Alpha',
-          downloads: 89,
-          rating: 4.6
-        }
-      ];
-      
+      const components = this.state?.marketplace?.components || [];
       res.json(components);
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -1005,7 +1076,14 @@ class PenguinAlphaServer {
   async createMarketplaceComponent(req, res) {
     try {
       const component = req.body;
-      res.json({ ...component, id: uuidv4(), createdAt: new Date().toISOString() });
+      const created = { ...component, id: uuidv4(), createdAt: new Date().toISOString() };
+      if (!this.state?.marketplace) {
+        this.state = await this.stateStore.load();
+      }
+      this.state.marketplace.components = this.state.marketplace.components || [];
+      this.state.marketplace.components.push(created);
+      await this.persistState();
+      res.json(created);
     } catch (error) {
       res.status(500).json({ error: error.message });
     }
@@ -1017,10 +1095,235 @@ class PenguinAlphaServer {
   async getMarketplaceComponent(req, res) {
     try {
       const { id } = req.params;
-      // Lógica para obtener componente específico
-      res.json({ id, name: 'Component', code: '// Component code' });
+      const components = this.state?.marketplace?.components || [];
+      const component = components.find(item => item.id === id);
+      if (!component) {
+        return res.status(404).json({ error: 'Componente no encontrado' });
+      }
+      res.json(component);
     } catch (error) {
       res.status(500).json({ error: error.message });
+    }
+  }
+
+  /**
+   * 🧩 Obtener extensiones del marketplace
+   */
+  async getMarketplaceExtensions(req, res) {
+    try {
+      const extensions = this.state?.marketplace?.extensions || [];
+      res.json(extensions);
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  /**
+   * ➕ Crear extension marketplace
+   */
+  async createMarketplaceExtension(req, res) {
+    try {
+      const extension = req.body;
+      const created = { ...extension, id: extension.id || uuidv4(), createdAt: new Date().toISOString() };
+      if (!this.state?.marketplace) {
+        this.state = await this.stateStore.load();
+      }
+      this.state.marketplace.extensions = this.state.marketplace.extensions || [];
+      this.state.marketplace.extensions.push(created);
+      await this.persistState();
+      res.json(created);
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  /**
+   * 🤖 Agentes
+   */
+  async getAgents(req, res) {
+    try {
+      res.json(this.registry.listAgents());
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  async runAgent(req, res) {
+    try {
+      const { id } = req.params;
+      const payload = req.body || {};
+      const result = await this.registry.runAgent(id, payload);
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  async getTools(req, res) {
+    try {
+      res.json(this.registry.listTools());
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  async runTool(req, res) {
+    try {
+      const { id } = req.params;
+      const payload = req.body || {};
+      const result = await this.registry.runTool(id, payload);
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  async getProtocols(req, res) {
+    try {
+      res.json(this.registry.listProtocols());
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  async runProtocol(req, res) {
+    try {
+      const { id } = req.params;
+      const payload = req.body || {};
+      const result = await this.registry.runProtocol(id, payload);
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  async getIntegrations(req, res) {
+    try {
+      res.json(this.registry.listIntegrations());
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  async runIntegration(req, res) {
+    try {
+      const { id } = req.params;
+      const payload = req.body || {};
+      const result = await this.registry.runIntegration(id, payload);
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  /**
+   * 🧠 Self Dev
+   */
+  async selfDevScan(req, res) {
+    try {
+      const payload = req.body || {};
+      const result = await this.registry.runAgent('self-dev-agent', { action: 'scan', ...payload });
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  async selfDevPlan(req, res) {
+    try {
+      const payload = req.body || {};
+      const result = await this.registry.runAgent('self-dev-agent', { action: 'plan', ...payload });
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  /**
+   * 💳 Billing & Licenses
+   */
+  getBillingPlans(req, res) {
+    res.json([
+      { id: 'starter', name: 'Starter', price: 0, features: ['IDE base', 'Chat IA', 'Workspaces'] },
+      { id: 'pro', name: 'Pro', price: 29, features: ['Agentes pro', 'Marketplace', 'CI/CD'] },
+      { id: 'enterprise', name: 'Enterprise', price: 99, features: ['Agentes enterprise', 'MCP', 'Deploy multi-cloud'] }
+    ]);
+  }
+
+  getBillingStatus(req, res) {
+    const accountId = req.query.accountId || 'default';
+    const subscription = this.state?.subscriptions?.[accountId] || { plan: 'starter', status: 'inactive' };
+    res.json(subscription);
+  }
+
+  async activateBillingPlan(req, res) {
+    try {
+      const { accountId = 'default', plan = 'starter' } = req.body || {};
+      if (!this.state) {
+        this.state = await this.stateStore.load();
+      }
+      this.state.subscriptions = this.state.subscriptions || {};
+      this.state.subscriptions[accountId] = {
+        plan,
+        status: 'active',
+        activatedAt: new Date().toISOString()
+      };
+      await this.persistState();
+      res.json(this.state.subscriptions[accountId]);
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  getLicenses(req, res) {
+    res.json(this.state?.licenses || {});
+  }
+
+  async activateLicense(req, res) {
+    try {
+      const { id, type = 'trial', accountId = 'default' } = req.body || {};
+      if (!id) {
+        return res.status(400).json({ error: 'License id requerido' });
+      }
+      if (!this.state) {
+        this.state = await this.stateStore.load();
+      }
+      this.state.licenses = this.state.licenses || {};
+      this.state.licenses[id] = {
+        id,
+        type,
+        accountId,
+        status: 'active',
+        activatedAt: new Date().toISOString()
+      };
+      await this.persistState();
+      res.json(this.state.licenses[id]);
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  /**
+   * 🔌 MCP HTTP handler
+   */
+  async handleMcpRequest(req, res) {
+    try {
+      const state = this.state || await this.stateStore.load();
+      const server = createMcpServer({ registry: this.registry, state, rootDir: __dirname });
+      const transport = new StreamableHTTPServerTransport({
+        sessionIdGenerator: undefined
+      });
+      await server.connect(transport);
+      await transport.handleRequest(req, res, req.body);
+      res.on('close', () => {
+        transport.close();
+        server.close();
+      });
+    } catch (error) {
+      console.error('❌ MCP error:', error);
+      if (!res.headersSent) {
+        res.status(500).json({ error: error.message });
+      }
     }
   }
 
@@ -1150,6 +1453,7 @@ class PenguinAlphaServer {
     }
     result.endedAt = new Date().toISOString();
     this.lastAudit = result;
+    await this.persistState();
     res.json(result);
   }
 
@@ -1298,7 +1602,8 @@ class PenguinAlphaServer {
   /**
    * 🚀 Iniciar servidor
    */
-  start() {
+  async start() {
+    await this.bootstrapPromise;
     const port = process.env.PORT || this.port;
     this.server.listen(port, () => {
       console.log(`🌐 Penguin Alpha Enhanced Server corriendo en puerto ${port}`);
@@ -1314,7 +1619,10 @@ class PenguinAlphaServer {
 // Iniciar servidor
 if (require.main === module) {
   const server = new PenguinAlphaServer();
-  server.start();
+  server.start().catch((error) => {
+    console.error('❌ Error iniciando servidor:', error);
+    process.exit(1);
+  });
 }
 
 module.exports = PenguinAlphaServer;

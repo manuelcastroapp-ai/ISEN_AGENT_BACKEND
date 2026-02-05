@@ -123,6 +123,18 @@ class PenguinAlphaUltraIDE {
         this.workspaceFiles = [];
         this.currentFolderPath = '';
         this.apiBase = this.loadBackendUrl();
+        this.catalogs = {
+            agents: [],
+            tools: [],
+            protocols: [],
+            integrations: []
+        };
+        this.selfDevState = null;
+        this.billingState = {
+            plans: [],
+            status: null,
+            licenses: {}
+        };
         
         this.initializeExtensions();
         this.initializeAIModels();
@@ -142,6 +154,7 @@ class PenguinAlphaUltraIDE {
         this.initializeCICDPipeline();
         this.initializeThemeSystem();
         this.initializeExtensionHost();
+        this.initializeAutomationPanels();
         this.initializeUrlConfirmation();
     }
 
@@ -189,6 +202,93 @@ class PenguinAlphaUltraIDE {
                 JSON.parse(installed).forEach(id => this.extensionHost.install(id));
             }
         });
+    }
+
+    initializeAutomationPanels() {
+        this.panelConfig = {
+            agents: {
+                selectId: 'agent-select',
+                actionId: 'agent-action',
+                inputId: 'agent-input',
+                runId: 'agent-run',
+                outputId: 'agent-output',
+                detailId: 'agent-details',
+                endpoint: '/api/agents'
+            },
+            tools: {
+                selectId: 'tool-select',
+                actionId: 'tool-action',
+                inputId: 'tool-input',
+                runId: 'tool-run',
+                outputId: 'tool-output',
+                detailId: 'tool-details',
+                endpoint: '/api/tools'
+            },
+            protocols: {
+                selectId: 'protocol-select',
+                actionId: 'protocol-action',
+                inputId: 'protocol-input',
+                runId: 'protocol-run',
+                outputId: 'protocol-output',
+                detailId: 'protocol-details',
+                endpoint: '/api/protocols'
+            },
+            integrations: {
+                selectId: 'integration-select',
+                actionId: 'integration-action',
+                inputId: 'integration-input',
+                runId: 'integration-run',
+                outputId: 'integration-output',
+                detailId: 'integration-details',
+                endpoint: '/api/integrations'
+            }
+        };
+
+        const refreshMap = {
+            agents: 'agents-refresh',
+            tools: 'tools-refresh',
+            protocols: 'protocols-refresh',
+            integrations: 'integrations-refresh'
+        };
+
+        Object.keys(this.panelConfig).forEach(type => {
+            const config = this.panelConfig[type];
+            const select = document.getElementById(config.selectId);
+            if (select) {
+                select.addEventListener('change', () => this.updateActionPanel(type));
+            }
+            const runBtn = document.getElementById(config.runId);
+            if (runBtn) {
+                runBtn.addEventListener('click', () => this.runActionPanel(type));
+            }
+            const refreshBtn = document.getElementById(refreshMap[type]);
+            if (refreshBtn) {
+                refreshBtn.addEventListener('click', () => this.loadCatalog(type, true));
+            }
+        });
+
+        const selfDevScan = document.getElementById('self-dev-scan');
+        if (selfDevScan) {
+            selfDevScan.addEventListener('click', () => this.runSelfDevScan());
+        }
+        const selfDevPlan = document.getElementById('self-dev-plan');
+        if (selfDevPlan) {
+            selfDevPlan.addEventListener('click', () => this.runSelfDevPlan());
+        }
+        const selfDevReset = document.getElementById('self-dev-refresh');
+        if (selfDevReset) {
+            selfDevReset.addEventListener('click', () => this.resetSelfDevPanel());
+        }
+
+        const billingRefresh = document.getElementById('billing-refresh');
+        if (billingRefresh) {
+            billingRefresh.addEventListener('click', () => this.loadBillingData(true));
+        }
+
+        const licenseActivate = document.getElementById('license-activate');
+        if (licenseActivate) {
+            licenseActivate.addEventListener('click', () => this.activateLicense());
+        }
     }
 
     loadBackendUrl() {
@@ -786,6 +886,13 @@ class PenguinAlphaUltraIDE {
                 targetPanel.classList.remove('hidden');
             }
         }
+
+        if (panelName === 'agents') this.loadCatalog('agents');
+        if (panelName === 'tools') this.loadCatalog('tools');
+        if (panelName === 'protocols') this.loadCatalog('protocols');
+        if (panelName === 'integrations') this.loadCatalog('integrations');
+        if (panelName === 'self-dev') this.loadSelfDevDefaults();
+        if (panelName === 'accounts') this.loadBillingData();
         
         this.currentPanel = panelName;
     }
@@ -1127,6 +1234,449 @@ class PenguinAlphaUltraIDE {
         });
         
         this.safeCreateIcons();
+    }
+
+    parsePayload(value) {
+        const text = String(value || '').trim();
+        if (!text) return {};
+        try {
+            return JSON.parse(text);
+        } catch {
+            return { task: text, input: text, concept: text };
+        }
+    }
+
+    async loadCatalog(type, force = false) {
+        const config = this.panelConfig?.[type];
+        if (!config) return;
+        if (!force && this.catalogs[type] && this.catalogs[type].length) {
+            this.renderActionPanel(type);
+            return;
+        }
+        const output = document.getElementById(config.outputId);
+        if (output) output.textContent = 'Loading...';
+
+        try {
+            const res = await fetch(this.apiUrl(config.endpoint));
+            const data = await res.json();
+            this.catalogs[type] = Array.isArray(data) ? data : [];
+            this.renderActionPanel(type);
+        } catch (error) {
+            if (output) output.textContent = `Error: ${error.message}`;
+            this.addChatMessage(`❌ ${type} catalog error: ${error.message}`, 'System', 'system');
+        }
+    }
+
+    renderActionPanel(type) {
+        const config = this.panelConfig?.[type];
+        if (!config) return;
+        const select = document.getElementById(config.selectId);
+        if (!select) return;
+        const current = select.value;
+        const list = this.catalogs[type] || [];
+
+        select.innerHTML = '';
+        if (!list.length) {
+            const option = document.createElement('option');
+            option.value = '';
+            option.textContent = 'No entries';
+            select.appendChild(option);
+            this.updateActionPanel(type);
+            return;
+        }
+
+        list.forEach(entry => {
+            const option = document.createElement('option');
+            option.value = entry.id;
+            option.textContent = entry.name || entry.id;
+            select.appendChild(option);
+        });
+
+        if (list.some(entry => entry.id === current)) {
+            select.value = current;
+        } else {
+            select.value = list[0].id;
+        }
+
+        this.updateActionPanel(type);
+    }
+
+    updateActionPanel(type) {
+        const config = this.panelConfig?.[type];
+        if (!config) return;
+        const select = document.getElementById(config.selectId);
+        const actionSelect = document.getElementById(config.actionId);
+        const detail = document.getElementById(config.detailId);
+        if (!select || !actionSelect) return;
+
+        const list = this.catalogs[type] || [];
+        const entry = list.find(item => item.id === select.value);
+        if (!entry) {
+            actionSelect.innerHTML = '';
+            if (detail) detail.textContent = '';
+            return;
+        }
+
+        actionSelect.innerHTML = '';
+        if (Array.isArray(entry.actions) && entry.actions.length) {
+            entry.actions.forEach(action => {
+                const option = document.createElement('option');
+                option.value = action.id || action;
+                option.textContent = action.title || action.id || action;
+                actionSelect.appendChild(option);
+            });
+        } else {
+            const option = document.createElement('option');
+            option.value = entry.defaultAction || 'run';
+            option.textContent = entry.defaultAction || 'run';
+            actionSelect.appendChild(option);
+        }
+
+        if (detail) {
+            const lines = [];
+            if (entry.description) lines.push(entry.description);
+            lines.push(`Tier: ${entry.tier || 'n/a'}`);
+            if (entry.capabilities && entry.capabilities.length) {
+                lines.push(`Capabilities: ${entry.capabilities.slice(0, 4).join(', ')}`);
+            }
+            detail.textContent = lines.join('\n');
+        }
+    }
+
+    async runActionPanel(type) {
+        const config = this.panelConfig?.[type];
+        if (!config) return;
+        const select = document.getElementById(config.selectId);
+        const actionSelect = document.getElementById(config.actionId);
+        const input = document.getElementById(config.inputId);
+        const output = document.getElementById(config.outputId);
+        if (!select || !actionSelect || !output) return;
+
+        const entryId = select.value;
+        if (!entryId) {
+            output.textContent = 'No selection';
+            return;
+        }
+        const payload = this.parsePayload(input?.value);
+        if (actionSelect.value) payload.action = actionSelect.value;
+
+        output.textContent = 'Running...';
+        try {
+            const res = await fetch(this.apiUrl(`${config.endpoint}/${encodeURIComponent(entryId)}/run`), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                throw new Error(data?.error || `Request failed (${res.status})`);
+            }
+            output.textContent = JSON.stringify(data, null, 2);
+        } catch (error) {
+            output.textContent = `Error: ${error.message}`;
+        }
+    }
+
+    loadSelfDevDefaults() {
+        const rootsInput = document.getElementById('self-dev-roots');
+        const depthInput = document.getElementById('self-dev-depth');
+        const limitInput = document.getElementById('self-dev-limit');
+        if (!rootsInput || !depthInput || !limitInput) return;
+
+        const savedRoots = localStorage.getItem('self-dev-roots');
+        const savedDepth = localStorage.getItem('self-dev-depth');
+        const savedLimit = localStorage.getItem('self-dev-limit');
+        if (savedRoots !== null) rootsInput.value = savedRoots;
+        if (savedDepth !== null) depthInput.value = savedDepth;
+        if (savedLimit !== null) limitInput.value = savedLimit;
+    }
+
+    getSelfDevPayload() {
+        const rootsInput = document.getElementById('self-dev-roots');
+        const depthInput = document.getElementById('self-dev-depth');
+        const limitInput = document.getElementById('self-dev-limit');
+        const roots = rootsInput?.value
+            ? rootsInput.value.split(/\r?\n/).map(value => value.trim()).filter(Boolean)
+            : [];
+        const maxDepth = depthInput?.value ? Number(depthInput.value) : undefined;
+        const maxResults = limitInput?.value ? Number(limitInput.value) : undefined;
+
+        if (rootsInput) localStorage.setItem('self-dev-roots', rootsInput.value || '');
+        if (depthInput) localStorage.setItem('self-dev-depth', depthInput.value || '');
+        if (limitInput) localStorage.setItem('self-dev-limit', limitInput.value || '');
+
+        return {
+            ...(roots.length ? { roots } : {}),
+            ...(Number.isFinite(maxDepth) ? { maxDepth } : {}),
+            ...(Number.isFinite(maxResults) ? { maxResults } : {})
+        };
+    }
+
+    resetSelfDevPanel() {
+        const rootsInput = document.getElementById('self-dev-roots');
+        const depthInput = document.getElementById('self-dev-depth');
+        const limitInput = document.getElementById('self-dev-limit');
+        const summary = document.getElementById('self-dev-summary');
+        const list = document.getElementById('self-dev-projects');
+        const output = document.getElementById('self-dev-output');
+
+        if (rootsInput) rootsInput.value = '';
+        if (depthInput) depthInput.value = '';
+        if (limitInput) limitInput.value = '';
+        if (summary) summary.textContent = '';
+        if (list) list.innerHTML = '';
+        if (output) output.textContent = '';
+        this.selfDevState = null;
+        localStorage.removeItem('self-dev-roots');
+        localStorage.removeItem('self-dev-depth');
+        localStorage.removeItem('self-dev-limit');
+    }
+
+    async runSelfDevScan() {
+        const output = document.getElementById('self-dev-output');
+        if (output) output.textContent = 'Scanning...';
+        try {
+            const payload = this.getSelfDevPayload();
+            const res = await fetch(this.apiUrl('/api/self-dev/scan'), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                throw new Error(data?.error || `Request failed (${res.status})`);
+            }
+            this.selfDevState = data;
+            this.renderSelfDevResults(data);
+        } catch (error) {
+            if (output) output.textContent = `Error: ${error.message}`;
+        }
+    }
+
+    renderSelfDevResults(data) {
+        const result = data?.result || data || {};
+        const projects = Array.isArray(result.projects) ? result.projects : [];
+        const summary = document.getElementById('self-dev-summary');
+        const list = document.getElementById('self-dev-projects');
+        const output = document.getElementById('self-dev-output');
+
+        const ready = projects.filter(project => project.readiness === 'ready').length;
+        const close = projects.filter(project => project.readiness === 'close').length;
+        const early = projects.filter(project => project.readiness === 'early').length;
+        if (summary) {
+            summary.textContent = `Projects: ${projects.length}\nReady: ${ready} | Close: ${close} | Early: ${early}`;
+        }
+
+        if (list) {
+            list.innerHTML = '';
+            projects.slice(0, 50).forEach(project => {
+                const item = document.createElement('div');
+                item.className = 'panel-item';
+                const markers = Array.isArray(project.markers) ? project.markers.join(', ') : '';
+                item.textContent = `${project.readiness || 'n/a'} | ${project.path}${markers ? ` | ${markers}` : ''}`;
+                list.appendChild(item);
+            });
+        }
+
+        if (output) {
+            output.textContent = JSON.stringify(result, null, 2);
+        }
+    }
+
+    async runSelfDevPlan() {
+        const output = document.getElementById('self-dev-output');
+        if (output) output.textContent = 'Generating plan...';
+        try {
+            const payload = {
+                focus: 'ide',
+                ...(this.selfDevState?.result?.projects
+                    ? { projects: this.selfDevState.result.projects.slice(0, 50) }
+                    : {})
+            };
+            const res = await fetch(this.apiUrl('/api/self-dev/plan'), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                throw new Error(data?.error || `Request failed (${res.status})`);
+            }
+            const result = data?.result || data;
+            if (output) output.textContent = JSON.stringify(result, null, 2);
+        } catch (error) {
+            if (output) output.textContent = `Error: ${error.message}`;
+        }
+    }
+
+    async loadBillingData(force = false) {
+        if (!force && this.billingState.status && this.billingState.plans.length) {
+            this.renderBilling();
+            return;
+        }
+        try {
+            const [plansRes, statusRes, licensesRes] = await Promise.all([
+                fetch(this.apiUrl('/api/billing/plans')),
+                fetch(this.apiUrl('/api/billing/status')),
+                fetch(this.apiUrl('/api/licenses'))
+            ]);
+            const plans = await plansRes.json();
+            const status = await statusRes.json();
+            const licenses = await licensesRes.json();
+            this.billingState = {
+                plans: Array.isArray(plans) ? plans : [],
+                status: status || null,
+                licenses: licenses || {}
+            };
+            this.renderBilling();
+            await this.loadLicenseOptions();
+        } catch (error) {
+            this.addChatMessage(`❌ Billing error: ${error.message}`, 'System', 'system');
+        }
+    }
+
+    renderBilling() {
+        this.renderBillingStatus();
+        this.renderBillingPlans();
+        this.renderLicenses();
+    }
+
+    renderBillingStatus() {
+        const statusEl = document.getElementById('billing-status');
+        if (!statusEl) return;
+        const status = this.billingState.status || { plan: 'starter', status: 'inactive' };
+        const plan = this.billingState.plans.find(item => item.id === status.plan);
+        const planName = plan?.name || status.plan || 'starter';
+        statusEl.textContent = `Plan: ${planName}\nStatus: ${status.status || 'inactive'}`;
+    }
+
+    renderBillingPlans() {
+        const list = document.getElementById('billing-plans');
+        if (!list) return;
+        list.innerHTML = '';
+        this.billingState.plans.forEach(plan => {
+            const card = document.createElement('div');
+            card.className = 'panel-item';
+            const price = plan.price === 0 ? 'Free' : `$${plan.price}/mo`;
+            const features = Array.isArray(plan.features) ? plan.features.join(', ') : '';
+            card.innerHTML = `
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                    <strong>${plan.name}</strong>
+                    <span class="panel-pill">${price}</span>
+                </div>
+                <div class="panel-meta">${features}</div>
+                <button class="btn btn-secondary" data-plan="${plan.id}" style="margin-top:6px;">Activate</button>
+            `;
+            card.querySelector('button').addEventListener('click', () => this.activateBillingPlan(plan.id));
+            list.appendChild(card);
+        });
+    }
+
+    renderLicenses() {
+        const list = document.getElementById('license-list');
+        if (!list) return;
+        list.innerHTML = '';
+        const entries = Object.entries(this.billingState.licenses || {});
+        if (!entries.length) {
+            list.innerHTML = '<div class="panel-meta">No licenses active</div>';
+            return;
+        }
+        entries.forEach(([id, license]) => {
+            const item = document.createElement('div');
+            item.className = 'panel-item';
+            item.textContent = `${id} | ${license.type || 'trial'} | ${license.status || 'active'}`;
+            list.appendChild(item);
+        });
+    }
+
+    async loadLicenseOptions() {
+        const select = document.getElementById('license-extension');
+        if (!select) return;
+        const options = [];
+
+        if (Array.isArray(this.marketplace?.availableExtensions) && this.marketplace.availableExtensions.length) {
+            this.marketplace.availableExtensions.forEach(ext => {
+                options.push({ id: ext.id, name: ext.name });
+            });
+        } else if (this.extensionHost?.registry?.size) {
+            this.extensionHost.registry.forEach(ext => {
+                options.push({ id: ext.id, name: ext.name || ext.id });
+            });
+        } else {
+            try {
+                const res = await fetch(this.apiUrl('/api/marketplace/extensions'));
+                const data = await res.json();
+                if (Array.isArray(data)) {
+                    data.forEach(ext => options.push({ id: ext.id, name: ext.name || ext.id }));
+                }
+            } catch {
+                // ignore
+            }
+        }
+
+        const unique = new Map();
+        options.forEach(option => {
+            if (!unique.has(option.id)) unique.set(option.id, option);
+        });
+
+        select.innerHTML = '';
+        if (!unique.size) {
+            const empty = document.createElement('option');
+            empty.value = '';
+            empty.textContent = 'No extensions';
+            select.appendChild(empty);
+            return;
+        }
+
+        Array.from(unique.values()).forEach(option => {
+            const opt = document.createElement('option');
+            opt.value = option.id;
+            opt.textContent = option.name;
+            select.appendChild(opt);
+        });
+    }
+
+    async activateBillingPlan(planId) {
+        try {
+            const res = await fetch(this.apiUrl('/api/billing/activate'), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ plan: planId })
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                throw new Error(data?.error || `Request failed (${res.status})`);
+            }
+            this.billingState.status = data;
+            this.renderBillingStatus();
+        } catch (error) {
+            this.addChatMessage(`❌ Billing activation error: ${error.message}`, 'System', 'system');
+        }
+    }
+
+    async activateLicense() {
+        const select = document.getElementById('license-extension');
+        const typeSelect = document.getElementById('license-type');
+        if (!select || !select.value) return;
+        try {
+            const res = await fetch(this.apiUrl('/api/licenses/activate'), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: select.value, type: typeSelect?.value || 'trial' })
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                throw new Error(data?.error || `Request failed (${res.status})`);
+            }
+            this.billingState.licenses = this.billingState.licenses || {};
+            this.billingState.licenses[select.value] = data;
+            if (this.extensionHost) {
+                this.extensionHost.grantLicense(select.value, data.type || 'trial');
+            }
+            this.renderLicenses();
+        } catch (error) {
+            this.addChatMessage(`❌ License activation error: ${error.message}`, 'System', 'system');
+        }
     }
 
     // 💾 Save Current File

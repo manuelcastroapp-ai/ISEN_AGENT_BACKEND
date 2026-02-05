@@ -1,0 +1,23 @@
+version: "3.9"
+
+services:
+  isen-ide:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      EXECUTION_ENABLED: "true"
+      EXECUTION_TIMEOUT_MS: 30000
+      LLM_PROVIDER: auto
+      LOCAL_LLM_URL: http://host.docker.internal:11434
+    volumes:
+      - ide-workspaces:/app/workspaces
+      - ide-data:/app/data
+      - ide-uploads:/app/uploads
+
+volumes:
+  ide-workspaces:
+  ide-data:
+  ide-uploads:

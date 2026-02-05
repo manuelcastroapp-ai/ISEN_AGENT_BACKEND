@@ -628,6 +628,82 @@
             background: var(--bg-tertiary);
         }
 
+        .panel-input,
+        .panel-output {
+            width: 100%;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            border-radius: 4px;
+            padding: 6px 8px;
+            font-size: 12px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .panel-input:focus {
+            outline: none;
+            border-color: var(--accent-primary);
+        }
+
+        .panel-output {
+            background: var(--bg-editor);
+            min-height: 120px;
+            white-space: pre-wrap;
+        }
+
+        .panel-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .panel-list {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .panel-item {
+            padding: 6px 8px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        .panel-item:hover {
+            background: var(--bg-secondary);
+        }
+
+        .panel-meta {
+            font-size: 11px;
+            color: var(--text-secondary);
+            white-space: pre-wrap;
+        }
+
+        .panel-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 2px 6px;
+            border-radius: 999px;
+            border: 1px solid var(--border-color);
+            font-size: 10px;
+            color: var(--text-secondary);
+        }
+
+        .terminal {
+            background: var(--bg-editor);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            color: var(--text-primary);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            padding: 8px;
+            white-space: pre-wrap;
+        }
+
         .hidden {
             display: none !important;
         }
@@ -654,6 +730,21 @@
             </div>
             <div class="activity-item" data-panel="marketplace" title="Marketplace">
                 <i data-lucide="shopping-cart" class="w-5 h-5"></i>
+            </div>
+            <div class="activity-item" data-panel="agents" title="Agents">
+                <i data-lucide="bot" class="w-5 h-5"></i>
+            </div>
+            <div class="activity-item" data-panel="tools" title="Tools">
+                <i data-lucide="wand-2" class="w-5 h-5"></i>
+            </div>
+            <div class="activity-item" data-panel="protocols" title="Protocols">
+                <i data-lucide="workflow" class="w-5 h-5"></i>
+            </div>
+            <div class="activity-item" data-panel="integrations" title="Integrations">
+                <i data-lucide="link" class="w-5 h-5"></i>
+            </div>
+            <div class="activity-item" data-panel="self-dev" title="Self Dev">
+                <i data-lucide="sparkles" class="w-5 h-5"></i>
             </div>
             <div class="activity-item" data-panel="pipeline" title="CI/CD Pipeline">
                 <i data-lucide="git-merge" class="w-5 h-5"></i>
@@ -928,6 +1019,141 @@
                 </div>
             </div>
 
+            <!-- Agents Panel -->
+            <div id="agents-panel" class="sidebar-panel hidden">
+                <div class="sidebar-header">
+                    <span>AGENTS</span>
+                    <button class="btn btn-secondary" id="agents-refresh" title="Refresh">
+                        <i data-lucide="refresh-cw" class="w-3 h-3"></i>
+                    </button>
+                </div>
+                <div class="sidebar-content">
+                    <div class="sidebar-section">
+                        <div class="sidebar-section-title">SELECT AGENT</div>
+                        <select id="agent-select" class="panel-input"></select>
+                        <div id="agent-details" class="panel-meta" style="margin-top: 6px;"></div>
+                    </div>
+                    <div class="sidebar-section">
+                        <div class="sidebar-section-title">ACTION</div>
+                        <div class="panel-row" style="margin-bottom: 6px;">
+                            <select id="agent-action" class="panel-input"></select>
+                            <button class="btn" id="agent-run">Run</button>
+                        </div>
+                        <textarea id="agent-input" class="panel-input" rows="4" placeholder='{"task": "describe..."}'></textarea>
+                        <pre id="agent-output" class="panel-output" style="margin-top: 8px;"></pre>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tools Panel -->
+            <div id="tools-panel" class="sidebar-panel hidden">
+                <div class="sidebar-header">
+                    <span>TOOLS</span>
+                    <button class="btn btn-secondary" id="tools-refresh" title="Refresh">
+                        <i data-lucide="refresh-cw" class="w-3 h-3"></i>
+                    </button>
+                </div>
+                <div class="sidebar-content">
+                    <div class="sidebar-section">
+                        <div class="sidebar-section-title">SELECT TOOL</div>
+                        <select id="tool-select" class="panel-input"></select>
+                        <div id="tool-details" class="panel-meta" style="margin-top: 6px;"></div>
+                    </div>
+                    <div class="sidebar-section">
+                        <div class="sidebar-section-title">ACTION</div>
+                        <div class="panel-row" style="margin-bottom: 6px;">
+                            <select id="tool-action" class="panel-input"></select>
+                            <button class="btn" id="tool-run">Run</button>
+                        </div>
+                        <textarea id="tool-input" class="panel-input" rows="4" placeholder='{"task": "describe..."}'></textarea>
+                        <pre id="tool-output" class="panel-output" style="margin-top: 8px;"></pre>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Protocols Panel -->
+            <div id="protocols-panel" class="sidebar-panel hidden">
+                <div class="sidebar-header">
+                    <span>PROTOCOLS</span>
+                    <button class="btn btn-secondary" id="protocols-refresh" title="Refresh">
+                        <i data-lucide="refresh-cw" class="w-3 h-3"></i>
+                    </button>
+                </div>
+                <div class="sidebar-content">
+                    <div class="sidebar-section">
+                        <div class="sidebar-section-title">SELECT PROTOCOL</div>
+                        <select id="protocol-select" class="panel-input"></select>
+                        <div id="protocol-details" class="panel-meta" style="margin-top: 6px;"></div>
+                    </div>
+                    <div class="sidebar-section">
+                        <div class="sidebar-section-title">ACTION</div>
+                        <div class="panel-row" style="margin-bottom: 6px;">
+                            <select id="protocol-action" class="panel-input"></select>
+                            <button class="btn" id="protocol-run">Run</button>
+                        </div>
+                        <textarea id="protocol-input" class="panel-input" rows="4" placeholder='{"task": "describe..."}'></textarea>
+                        <pre id="protocol-output" class="panel-output" style="margin-top: 8px;"></pre>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Integrations Panel -->
+            <div id="integrations-panel" class="sidebar-panel hidden">
+                <div class="sidebar-header">
+                    <span>INTEGRATIONS</span>
+                    <button class="btn btn-secondary" id="integrations-refresh" title="Refresh">
+                        <i data-lucide="refresh-cw" class="w-3 h-3"></i>
+                    </button>
+                </div>
+                <div class="sidebar-content">
+                    <div class="sidebar-section">
+                        <div class="sidebar-section-title">SELECT INTEGRATION</div>
+                        <select id="integration-select" class="panel-input"></select>
+                        <div id="integration-details" class="panel-meta" style="margin-top: 6px;"></div>
+                    </div>
+                    <div class="sidebar-section">
+                        <div class="sidebar-section-title">ACTION</div>
+                        <div class="panel-row" style="margin-bottom: 6px;">
+                            <select id="integration-action" class="panel-input"></select>
+                            <button class="btn" id="integration-run">Run</button>
+                        </div>
+                        <textarea id="integration-input" class="panel-input" rows="4" placeholder='{"task": "describe..."}'></textarea>
+                        <pre id="integration-output" class="panel-output" style="margin-top: 8px;"></pre>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Self Dev Panel -->
+            <div id="self-dev-panel" class="sidebar-panel hidden">
+                <div class="sidebar-header">
+                    <span>SELF DEV</span>
+                    <button class="btn btn-secondary" id="self-dev-refresh" title="Reset">
+                        <i data-lucide="rotate-ccw" class="w-3 h-3"></i>
+                    </button>
+                </div>
+                <div class="sidebar-content">
+                    <div class="sidebar-section">
+                        <div class="sidebar-section-title">SCAN SETTINGS</div>
+                        <label class="panel-meta" style="display: block; margin-bottom: 4px;">Roots (one per line)</label>
+                        <textarea id="self-dev-roots" class="panel-input" rows="3" placeholder="D:\\agentes ISEN"></textarea>
+                        <div class="panel-row" style="margin-top: 6px;">
+                            <input id="self-dev-depth" type="number" min="1" max="10" class="panel-input" placeholder="Depth">
+                            <input id="self-dev-limit" type="number" min="10" max="500" class="panel-input" placeholder="Max results">
+                        </div>
+                        <div class="panel-row" style="margin-top: 8px;">
+                            <button class="btn" id="self-dev-scan">Scan</button>
+                            <button class="btn btn-secondary" id="self-dev-plan">Generate Plan</button>
+                        </div>
+                    </div>
+                    <div class="sidebar-section">
+                        <div class="sidebar-section-title">RESULTS</div>
+                        <div id="self-dev-summary" class="panel-meta" style="margin-bottom: 8px;"></div>
+                        <div id="self-dev-projects" class="panel-list"></div>
+                        <pre id="self-dev-output" class="panel-output" style="margin-top: 8px;"></pre>
+                    </div>
+                </div>
+            </div>
+
             <!-- Total Access Panel -->
             <div id="total-access-panel" class="sidebar-panel hidden">
                 <div class="sidebar-header">
@@ -981,6 +1207,27 @@
                         <button class="btn btn-secondary" onclick="ide.addChatMessage('✅ Logout complete', 'System', 'system')" style="width: 100%;">
                             <i data-lucide="log-out" class="w-3 h-3"></i> Logout
                         </button>
+                    </div>
+                    <div class="sidebar-section">
+                        <div class="sidebar-section-title">BILLING STATUS</div>
+                        <div id="billing-status" class="panel-meta" style="margin-bottom: 6px;">Plan: starter</div>
+                        <button class="btn btn-secondary" id="billing-refresh" style="width: 100%;">Refresh</button>
+                    </div>
+                    <div class="sidebar-section">
+                        <div class="sidebar-section-title">PLANS</div>
+                        <div id="billing-plans" class="panel-list"></div>
+                    </div>
+                    <div class="sidebar-section">
+                        <div class="sidebar-section-title">LICENSES</div>
+                        <div class="panel-row" style="margin-bottom: 6px;">
+                            <select id="license-extension" class="panel-input"></select>
+                            <select id="license-type" class="panel-input">
+                                <option value="trial">Trial</option>
+                                <option value="paid">Paid</option>
+                            </select>
+                        </div>
+                        <button class="btn" id="license-activate" style="width: 100%; margin-bottom: 6px;">Activate License</button>
+                        <div id="license-list" class="panel-list"></div>
                     </div>
                 </div>
             </div>

@@ -11,7 +11,8 @@
     "test": "echo \"Tests completed\"",
     "audit:e2e": "node scripts/e2e-audit.js",
     "audit:e2e:3777": "set AUDIT_BASE_URL=http://localhost:3777&& node scripts/e2e-audit.js",
-    "setup": "npm install && mkdir -p workspaces public uploads"
+    "setup": "npm install && mkdir -p workspaces public uploads",
+    "mcp": "node mcp/server.js"
   },
   "keywords": [
     "ide",
@@ -25,6 +26,7 @@
   "author": "Penguin Alpha Enhanced Team",
   "license": "MIT",
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.26.0",
     "chokidar": "^4.0.1",
     "cors": "^2.8.5",
     "debug": "^4.4.0",
@@ -33,7 +35,8 @@
     "multer": "^1.4.5-lts.1",
     "serverless-http": "^4.0.0",
     "socket.io": "^4.8.1",
-    "uuid": "^10.0.0"
+    "uuid": "^10.0.0",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "nodemon": "^3.1.7"
