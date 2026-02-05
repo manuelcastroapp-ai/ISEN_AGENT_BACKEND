@@ -215,7 +215,9 @@ class PenguinAlphaServer {
         const reply = await this.chatWithAI(data.message);
         socket.emit('chat_response', {
           sender: 'AI',
-          message: reply.ok ? reply.content : (reply.error || 'LLM unavailable')
+          message: reply.ok ? reply.content : (reply.error || 'LLM unavailable'),
+          provider: reply.provider || null,
+          model: reply.model || null
         });
       });
 
@@ -1098,9 +1100,9 @@ class PenguinAlphaServer {
     ], { temperature: 0.3, max_tokens: 800 });
 
     if (!reply.ok) {
-      return { ok: false, error: reply.error || 'LLM unavailable' };
+      return { ok: false, error: reply.error || 'LLM unavailable', provider: reply.provider || null, model: reply.model || null };
     }
-    return { ok: true, content: reply.content };
+    return { ok: true, content: reply.content, provider: reply.provider || null, model: reply.model || null };
   }
 
   async chatEndpoint(req, res) {
@@ -1108,9 +1110,9 @@ class PenguinAlphaServer {
       const { message } = req.body;
       const reply = await this.chatWithAI(message);
       if (reply.ok) {
-        res.json({ reply: reply.content });
+        res.json({ reply: reply.content, provider: reply.provider, model: reply.model });
       } else {
-        res.status(503).json({ error: reply.error || 'LLM unavailable' });
+        res.status(503).json({ error: reply.error || 'LLM unavailable', provider: reply.provider, model: reply.model });
       }
     } catch (error) {
       res.status(500).json({ error: error.message });

@@ -690,12 +690,11 @@
                 </div>
                 <div class="sidebar-content">
                     <div class="sidebar-section">
-                        <div class="sidebar-section-title">PROJECTS</div>
-                        <div id="projects-list">
-                            <div class="sidebar-item active">
-                                <i data-lucide="folder" class="w-4 h-4"></i>
-                                <span>Penguin Alpha IDE</span>
-                            </div>
+                        <div class="sidebar-section-title">WORKSPACES</div>
+                        <div id="workspace-list"></div>
+                        <div style="display:flex; gap:6px; margin-top:6px;">
+                            <button class="btn btn-secondary" id="workspace-new">New</button>
+                            <button class="btn btn-secondary" id="workspace-refresh">Refresh</button>
                         </div>
                     </div>
                     <div class="sidebar-section">
@@ -1131,6 +1130,10 @@
             <div class="status-item">
                 <i data-lucide="globe" class="w-3 h-3"></i>
                 <span id="connection-status">Offline</span>
+            </div>
+            <div class="status-item">
+                <i data-lucide="bot" class="w-3 h-3"></i>
+                <span id="ai-status">AI: Offline</span>
             </div>
             <div class="status-item">
                 <i data-lucide="alert-circle" class="w-3 h-3"></i>

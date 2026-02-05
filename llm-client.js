@@ -44,7 +44,7 @@ class LLMClient {
 
   async chat(messages, opts = {}) {
     if (!this.isEnabled()) {
-      return { ok: false, error: 'LLM not configured.' };
+      return { ok: false, error: 'LLM not configured.', provider: null, model: null };
     }
 
     if (this.provider === 'openai') {
@@ -76,7 +76,9 @@ class LLMClient {
     if (!model) {
       return {
         ok: false,
-        error: 'Local LLM not available. Start Ollama and pull a model (e.g., ollama pull llama3.1:8b).'
+        error: 'Local LLM not available. Start Ollama and pull a model (e.g., ollama pull llama3.1:8b).',
+        provider: 'ollama',
+        model: null
       };
     }
 
@@ -98,12 +100,12 @@ class LLMClient {
 
     if (!res.ok) {
       const text = await res.text();
-      return { ok: false, error: `Local LLM error ${res.status}: ${text}` };
+      return { ok: false, error: `Local LLM error ${res.status}: ${text}`, provider: 'ollama', model };
     }
 
     const data = await res.json();
     const content = data?.message?.content || data?.response || '';
-    return { ok: true, content };
+    return { ok: true, content, provider: 'ollama', model };
   }
 
   async chatOpenAICompat(messages, opts = {}) {
@@ -129,17 +131,17 @@ class LLMClient {
 
     if (!res.ok) {
       const text = await res.text();
-      return { ok: false, error: `Local LLM error ${res.status}: ${text}` };
+      return { ok: false, error: `Local LLM error ${res.status}: ${text}`, provider: 'openai-compat', model };
     }
 
     const data = await res.json();
     const content = data.choices?.[0]?.message?.content || '';
-    return { ok: true, content };
+    return { ok: true, content, provider: 'openai-compat', model };
   }
 
   async chatOpenAI(messages, opts = {}) {
     if (!this.apiKey) {
-      return { ok: false, error: 'LLM not configured. Set OPENAI_API_KEY.' };
+      return { ok: false, error: 'LLM not configured. Set OPENAI_API_KEY.', provider: 'openai', model: this.model };
     }
     const base = this.normalizeOpenAIBase(this.baseUrl);
     const body = {
@@ -160,12 +162,12 @@ class LLMClient {
 
     if (!res.ok) {
       const text = await res.text();
-      return { ok: false, error: `LLM error ${res.status}: ${text}` };
+      return { ok: false, error: `LLM error ${res.status}: ${text}`, provider: 'openai', model: this.model };
     }
 
     const data = await res.json();
     const content = data.choices?.[0]?.message?.content || '';
-    return { ok: true, content };
+    return { ok: true, content, provider: 'openai', model: this.model };
   }
 
   async resolveLocalModel() {

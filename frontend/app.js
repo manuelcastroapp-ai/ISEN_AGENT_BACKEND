@@ -117,6 +117,8 @@ class PenguinAlphaUltraIDE {
             mode: 'normal'
         };
         this.permissions = null;
+        this.workspaces = [];
+        this.aiStatusTimer = null;
         this.workspaceId = null;
         this.workspaceFiles = [];
         this.currentFolderPath = '';
@@ -125,7 +127,9 @@ class PenguinAlphaUltraIDE {
         this.initializeExtensions();
         this.initializeAIModels();
         this.setupEventListeners();
+        this.setupWorkspaceControls();
         this.connectToServer();
+        this.refreshAIStatus();
         this.initializeMonacoEditor();
         this.initializeTerminal();
         this.initializeFileExplorer();
@@ -211,6 +215,48 @@ class PenguinAlphaUltraIDE {
     safeCreateIcons() {
         if (window.lucide && typeof window.lucide.createIcons === 'function') {
             window.lucide.createIcons();
+        }
+    }
+
+    updateAIStatus(state) {
+        const el = document.getElementById('ai-status');
+        if (!el) return;
+        if (!state) {
+            el.textContent = 'AI: Offline';
+            return;
+        }
+        const provider = state.provider ? String(state.provider).toUpperCase() : 'AI';
+        const model = state.model ? ` (${state.model})` : '';
+        el.textContent = state.ok ? `AI: ${provider}${model}` : 'AI: Offline';
+    }
+
+    formatAISource(provider, model) {
+        if (!provider) return 'AI';
+        const tag = provider === 'openai' ? 'Cloud' : 'Local';
+        const suffix = model ? ` • ${model}` : '';
+        return `AI (${tag}${suffix})`;
+    }
+
+    async refreshAIStatus() {
+        try {
+            const res = await fetch(this.apiUrl('/api/health'));
+            const data = await res.json();
+            if (data?.llm) {
+                this.updateAIStatus(data.llm);
+            }
+        } catch {
+            this.updateAIStatus(null);
+        }
+    }
+
+    setupWorkspaceControls() {
+        const createBtn = document.getElementById('workspace-new');
+        if (createBtn) {
+            createBtn.addEventListener('click', () => this.createWorkspacePrompt());
+        }
+        const refreshBtn = document.getElementById('workspace-refresh');
+        if (refreshBtn) {
+            refreshBtn.addEventListener('click', () => this.loadWorkspacesList());
         }
     }
 
@@ -882,7 +928,11 @@ class PenguinAlphaUltraIDE {
             });
             const data = await res.json();
             if (data.reply) {
-                this.addChatMessage(data.reply, 'AI', 'ai');
+                const label = this.formatAISource(data.provider, data.model);
+                this.addChatMessage(data.reply, label, 'ai');
+                if (data.provider) {
+                    this.updateAIStatus({ ok: true, provider: data.provider, model: data.model });
+                }
             } else {
                 this.addChatMessage(data.error || 'LLM error', 'System', 'system');
             }
@@ -1142,6 +1192,10 @@ class PenguinAlphaUltraIDE {
             console.log('✅ Connected to server successfully');
             this.addChatMessage('🔗 Connected to server successfully', 'System', 'system');
             this.updateConnectionStatus(true);
+            this.refreshAIStatus();
+            if (!this.aiStatusTimer) {
+                this.aiStatusTimer = setInterval(() => this.refreshAIStatus(), 30000);
+            }
             
             // ENVIAR ESTADO DEL IDE
             this.socket.emit('ide_status', {
@@ -1160,10 +1214,15 @@ class PenguinAlphaUltraIDE {
             console.log('❌ Disconnected from server');
             this.addChatMessage('🔌 Disconnected from server - Working in offline mode', 'System', 'system');
             this.updateConnectionStatus(false);
+            this.updateAIStatus(null);
         });
 
         this.socket.on('chat_response', (data) => {
-            this.addChatMessage(data.message, data.sender || 'AI', 'ai');
+            const label = this.formatAISource(data.provider, data.model);
+            this.addChatMessage(data.message, data.sender || label, 'ai');
+            if (data.provider) {
+                this.updateAIStatus({ ok: true, provider: data.provider, model: data.model });
+            }
         });
 
         this.socket.on('execution-result', (data) => {
@@ -1515,6 +1574,7 @@ console.log(ide.greet());`,
     // 📁 Workspace bootstrap
     async initializeWorkspace() {
         try {
+            await this.loadWorkspacesList();
             await this.ensureWorkspace();
             await this.loadWorkspaceFiles();
             if (this.workspaceFiles.length === 0 && this.workspaceId) {
@@ -1535,29 +1595,95 @@ console.log(ide.greet());`,
     }
 
     async ensureWorkspace() {
-        const res = await fetch(this.apiUrl('/api/workspaces'));
-        const workspaces = await res.json();
-        if (workspaces.length > 0) {
-            this.workspaceId = workspaces[0].id;
+        if (!this.workspaces || this.workspaces.length === 0) {
+            const created = await fetch(this.apiUrl('/api/workspaces'), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: 'Default Workspace',
+                    description: 'Workspace inicial',
+                    template: 'blank'
+                })
+            }).then(r => r.json());
+
+            this.workspaces = [created];
+            this.workspaceId = created.id;
+            localStorage.setItem('workspace-id', created.id);
+            this.renderWorkspaceList();
             if (this.socket && this.socket.connected) {
                 this.socket.emit('join-workspace', this.workspaceId);
             }
             return;
         }
 
+        if (!this.workspaceId) {
+            this.workspaceId = this.workspaces[0].id;
+            localStorage.setItem('workspace-id', this.workspaceId);
+        }
+        if (this.socket && this.socket.connected && this.workspaceId) {
+            this.socket.emit('join-workspace', this.workspaceId);
+        }
+    }
+
+    async loadWorkspacesList() {
+        const res = await fetch(this.apiUrl('/api/workspaces'));
+        const list = await res.json();
+        this.workspaces = Array.isArray(list) ? list : [];
+        const saved = localStorage.getItem('workspace-id');
+        if (saved && this.workspaces.some(ws => ws.id === saved)) {
+            this.workspaceId = saved;
+        } else if (this.workspaces[0]) {
+            this.workspaceId = this.workspaces[0].id;
+        } else {
+            this.workspaceId = null;
+        }
+        this.renderWorkspaceList();
+    }
+
+    renderWorkspaceList() {
+        const listEl = document.getElementById('workspace-list');
+        if (!listEl) return;
+        listEl.innerHTML = '';
+        this.workspaces.forEach(ws => {
+            const item = document.createElement('div');
+            item.className = `sidebar-item ${ws.id === this.workspaceId ? 'active' : ''}`;
+            item.dataset.workspaceId = ws.id;
+            item.innerHTML = `
+                <i data-lucide="folder" class="w-4 h-4"></i>
+                <span>${ws.name || 'Workspace'}</span>
+            `;
+            item.addEventListener('click', () => this.selectWorkspace(ws.id));
+            listEl.appendChild(item);
+        });
+        this.safeCreateIcons();
+    }
+
+    async selectWorkspace(id) {
+        if (!id || id === this.workspaceId) return;
+        this.workspaceId = id;
+        localStorage.setItem('workspace-id', id);
+        if (this.socket && this.socket.connected) {
+            this.socket.emit('join-workspace', this.workspaceId);
+        }
+        await this.loadWorkspaceFiles();
+        this.renderWorkspaceList();
+    }
+
+    async createWorkspacePrompt() {
+        const name = prompt('Workspace name');
+        if (!name) return;
         const created = await fetch(this.apiUrl('/api/workspaces'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                name: 'Default Workspace',
-                description: 'Workspace inicial',
+                name,
+                description: 'Workspace creado desde el IDE',
                 template: 'blank'
             })
         }).then(r => r.json());
-
-        this.workspaceId = created.id;
-        if (this.socket && this.socket.connected) {
-            this.socket.emit('join-workspace', this.workspaceId);
+        await this.loadWorkspacesList();
+        if (created?.id) {
+            await this.selectWorkspace(created.id);
         }
     }
 
