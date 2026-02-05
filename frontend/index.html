@@ -869,6 +869,9 @@
                         <label>
                             <input type="checkbox" id="auto-pipeline"> Auto-run pipeline
                         </label>
+                        <label>
+                            <input type="checkbox" id="continuous-execution"> Continuous execution (auto-commit + pipeline)
+                        </label>
                     </div>
                     <div class="sidebar-section">
                         <div class="sidebar-section-title">BACKEND</div>
@@ -1190,7 +1193,7 @@
     </div>
 
     <script>
-        window.__BACKEND_URL__ = localStorage.getItem('backend-url') || '';
+        window.__BACKEND_URL__ = localStorage.getItem('backend-url') || 'https://isen-ide-backend.onrender.com';
     </script>
     <script src="/app.js"></script>
 </body>

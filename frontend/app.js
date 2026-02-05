@@ -110,8 +110,9 @@ class PenguinAlphaUltraIDE {
         this.currentPanel = 'explorer';
         this.currentBottomPanel = 'terminal';
         this.settings = {
-            autoCommit: false,
-            autoPipeline: false,
+            autoCommit: true,
+            autoPipeline: true,
+            continuousExecution: true,
             theme: 'dark',
             mode: 'normal'
         };
@@ -189,7 +190,11 @@ class PenguinAlphaUltraIDE {
     loadBackendUrl() {
         const saved = localStorage.getItem('backend-url');
         if (saved) return saved;
-        return window.__BACKEND_URL__ || window.location.origin;
+        const fallback = window.__BACKEND_URL__ || window.location.origin;
+        if (fallback) {
+            localStorage.setItem('backend-url', fallback);
+        }
+        return fallback;
     }
 
     apiUrl(path) {
@@ -215,6 +220,7 @@ class PenguinAlphaUltraIDE {
         const modeSelector = document.getElementById('mode-selector');
         const autoCommit = document.getElementById('auto-commit');
         const autoPipeline = document.getElementById('auto-pipeline');
+        const continuousExecution = document.getElementById('continuous-execution');
         const backendUrlInput = document.getElementById('backend-url');
         const backendSave = document.getElementById('backend-save');
         const backendTest = document.getElementById('backend-test');
@@ -237,6 +243,10 @@ class PenguinAlphaUltraIDE {
         if (autoCommit) {
             autoCommit.addEventListener('change', (e) => {
                 this.settings.autoCommit = e.target.checked;
+                if (!e.target.checked && this.settings.continuousExecution) {
+                    this.applyContinuousExecution(false);
+                    return;
+                }
                 this.saveSettings();
             });
         }
@@ -244,7 +254,17 @@ class PenguinAlphaUltraIDE {
         if (autoPipeline) {
             autoPipeline.addEventListener('change', (e) => {
                 this.settings.autoPipeline = e.target.checked;
+                if (!e.target.checked && this.settings.continuousExecution) {
+                    this.applyContinuousExecution(false);
+                    return;
+                }
                 this.saveSettings();
+            });
+        }
+
+        if (continuousExecution) {
+            continuousExecution.addEventListener('change', (e) => {
+                this.applyContinuousExecution(e.target.checked);
             });
         }
 
@@ -296,6 +316,26 @@ class PenguinAlphaUltraIDE {
         this.updateAuditSectionVisibility();
     }
 
+    applyContinuousExecution(enabled) {
+        this.settings.continuousExecution = enabled;
+        if (enabled) {
+            this.settings.autoCommit = true;
+            this.settings.autoPipeline = true;
+        }
+        const autoCommit = document.getElementById('auto-commit');
+        const autoPipeline = document.getElementById('auto-pipeline');
+        const continuousExecution = document.getElementById('continuous-execution');
+        if (autoCommit) autoCommit.checked = this.settings.autoCommit;
+        if (autoPipeline) autoPipeline.checked = this.settings.autoPipeline;
+        if (continuousExecution) continuousExecution.checked = enabled;
+        this.saveSettings();
+        this.addChatMessage(
+            enabled ? '♻️ Continuous execution enabled' : '⏸️ Continuous execution disabled',
+            'System',
+            'system'
+        );
+    }
+
     async refreshPermissions(updateView = false) {
         try {
             const res = await fetch(this.apiUrl('/api/permissions'));
@@ -344,15 +384,21 @@ class PenguinAlphaUltraIDE {
         const saved = localStorage.getItem('ide-settings');
         if (saved) {
             this.settings = { ...this.settings, ...JSON.parse(saved) };
-            this.setTheme(this.settings.theme);
-            this.setMode(this.settings.mode);
-            
-            // Update checkboxes
-            const autoCommit = document.getElementById('auto-commit');
-            const autoPipeline = document.getElementById('auto-pipeline');
-            if (autoCommit) autoCommit.checked = this.settings.autoCommit;
-            if (autoPipeline) autoPipeline.checked = this.settings.autoPipeline;
         }
+        if (this.settings.continuousExecution) {
+            this.settings.autoCommit = true;
+            this.settings.autoPipeline = true;
+        }
+        this.setTheme(this.settings.theme);
+        this.setMode(this.settings.mode);
+
+        // Update checkboxes
+        const autoCommit = document.getElementById('auto-commit');
+        const autoPipeline = document.getElementById('auto-pipeline');
+        const continuousExecution = document.getElementById('continuous-execution');
+        if (autoCommit) autoCommit.checked = this.settings.autoCommit;
+        if (autoPipeline) autoPipeline.checked = this.settings.autoPipeline;
+        if (continuousExecution) continuousExecution.checked = this.settings.continuousExecution;
     }
 
     // 📥 Load Saved Theme
@@ -794,6 +840,7 @@ class PenguinAlphaUltraIDE {
     // 💬 Send Message - IA REAL FUNCIONAL
     sendMessage() {
         const input = document.getElementById('chat-input');
+        if (!input) return;
         const message = input.value.trim();
         
         if (!message) return;
@@ -803,10 +850,12 @@ class PenguinAlphaUltraIDE {
         
         // CONEXIÓN REAL AL SERVIDOR
         if (this.socket && this.socket.connected) {
+            const modelSelector = document.getElementById('ai-model-selector');
+            const model = modelSelector ? modelSelector.value : 'penguin-alpha';
             this.socket.emit('chat_message', {
                 message: message,
                 timestamp: new Date().toISOString(),
-                model: document.getElementById('ai-model-selector').value,
+                model,
                 workspaceId: this.workspaceId
             });
         } else {
@@ -1034,6 +1083,7 @@ class PenguinAlphaUltraIDE {
         if (this.extensionHost) {
             this.extensionHost.runHook('onSave', { filePath: this.currentFile, content });
         }
+        document.dispatchEvent(new CustomEvent('file-saved', { detail: { file: this.currentFile } }));
         this.addChatMessage('💾 File saved successfully', 'System', 'system');
     }
 
