@@ -9,6 +9,7 @@ const http = require('http');
 const socketIo = require('socket.io');
 const cors = require('cors');
 const path = require('path');
+const os = require('os');
 const fs = require('fs').promises;
 const { v4: uuidv4 } = require('uuid');
 const chokidar = require('chokidar');
@@ -43,9 +44,16 @@ class PenguinAlphaServer {
     this.activeProjects = new Map();
     this.codeExecution = new Map();
     this.lastAudit = null;
+    this.isServerless = this.isServerlessRuntime();
+    this.storageRoot = this.resolveStorageRoot();
+    this.workspaceRoot = path.join(this.storageRoot, 'workspaces');
+    this.uploadRoot = path.join(this.storageRoot, 'uploads');
+    this.dataRoot = path.join(this.storageRoot, 'data');
+    this.enableSockets = !this.isServerless;
+    this.enableWatchers = process.env.ENABLE_WATCHERS !== 'false' && !this.isServerless;
     this.permissions = this.loadAgentPermissions();
     this.stateStore = new StateStore({
-      filePath: path.join(__dirname, 'data', 'ide-state.json')
+      filePath: path.join(this.dataRoot, 'ide-state.json')
     });
     this.state = null;
     this.llm = new LLMClient();
@@ -73,6 +81,23 @@ class PenguinAlphaServer {
     this.bootstrapPromise = this.bootstrap();
   }
 
+  isServerlessRuntime() {
+    return Boolean(process.env.VERCEL || process.env.NETLIFY || process.env.AWS_LAMBDA_FUNCTION_NAME);
+  }
+
+  resolveStorageRoot() {
+    const envRoot = process.env.IDE_STORAGE_ROOT || process.env.DATA_DIR;
+    if (envRoot) return envRoot;
+    if (this.isServerlessRuntime()) {
+      return path.join(os.tmpdir(), 'isen-ide');
+    }
+    return __dirname;
+  }
+
+  getWorkspacePath(id, filePath = '') {
+    return filePath ? path.join(this.workspaceRoot, id, filePath) : path.join(this.workspaceRoot, id);
+  }
+
   /**
    * 🛠️ Configurar middleware
    */
@@ -87,7 +112,7 @@ class PenguinAlphaServer {
     // File upload configuration
     const storage = multer.diskStorage({
       destination: (req, file, cb) => {
-        cb(null, path.join(__dirname, 'uploads'));
+        cb(null, this.uploadRoot);
       },
       filename: (req, file, cb) => {
         cb(null, `${Date.now()}-${file.originalname}`);
@@ -218,6 +243,9 @@ class PenguinAlphaServer {
    * 🔌 Configurar WebSocket
    */
   setupWebSocket() {
+    if (!this.enableSockets) {
+      return;
+    }
     this.io.on('connection', (socket) => {
       console.log(`🔌 Usuario conectado: ${socket.id}`);
       
@@ -289,7 +317,10 @@ class PenguinAlphaServer {
    * 👀 Configurar file watcher
    */
   setupFileWatcher() {
-    this.fileWatcher = chokidar.watch(path.join(__dirname, 'workspaces'), {
+    if (!this.enableWatchers) {
+      return;
+    }
+    this.fileWatcher = chokidar.watch(this.workspaceRoot, {
       ignored: /(^|[\/\\])\../,
       persistent: true
     });
@@ -317,9 +348,9 @@ class PenguinAlphaServer {
   }
 
   async ensureDirectories() {
-    const dirs = ['workspaces', 'uploads', 'public', 'data'];
+    const dirs = [this.workspaceRoot, this.uploadRoot, this.dataRoot];
     for (const dir of dirs) {
-      await fs.mkdir(path.join(__dirname, dir), { recursive: true });
+      await fs.mkdir(dir, { recursive: true });
     }
   }
 
@@ -415,7 +446,7 @@ class PenguinAlphaServer {
       };
 
       // Crear directorio
-      const workspacePath = path.join(__dirname, 'workspaces', workspaceId);
+      const workspacePath = this.getWorkspacePath(workspaceId);
       await fs.mkdir(workspacePath, { recursive: true });
 
       // Inicializar con template
@@ -460,7 +491,7 @@ class PenguinAlphaServer {
       this.workspaces.delete(id);
       
       // Eliminar directorio
-      const workspacePath = path.join(__dirname, 'workspaces', id);
+      const workspacePath = this.getWorkspacePath(id);
       await fs.rm(workspacePath, { recursive: true, force: true });
       await this.persistState();
       
@@ -482,7 +513,7 @@ class PenguinAlphaServer {
         return res.status(404).json({ error: 'Workspace no encontrado' });
       }
       
-      const workspacePath = path.join(__dirname, 'workspaces', id);
+      const workspacePath = this.getWorkspacePath(id);
       const files = await this.scanDirectory(workspacePath);
       
       res.json(files);
@@ -546,7 +577,7 @@ class PenguinAlphaServer {
       }
 
       const safePath = this.sanitizeRelativePath(filePath);
-      const fullPath = path.join(__dirname, 'workspaces', id, safePath);
+      const fullPath = this.getWorkspacePath(id, safePath);
       
       if (type === 'directory') {
         await fs.mkdir(fullPath, { recursive: true });
@@ -581,7 +612,7 @@ class PenguinAlphaServer {
       }
       
       const safePath = this.sanitizeRelativePath(filePath);
-      const fullPath = path.join(__dirname, 'workspaces', id, safePath);
+      const fullPath = this.getWorkspacePath(id, safePath);
       await fs.writeFile(fullPath, content);
       
       workspace.updatedAt = new Date().toISOString();
@@ -610,7 +641,7 @@ class PenguinAlphaServer {
       }
       
       const safePath = this.sanitizeRelativePath(filePath);
-      const fullPath = path.join(__dirname, 'workspaces', id, safePath);
+      const fullPath = this.getWorkspacePath(id, safePath);
       await fs.unlink(fullPath);
       
       workspace.updatedAt = new Date().toISOString();
@@ -1359,7 +1390,7 @@ class PenguinAlphaServer {
     try {
       const { workspaceId, path: filePath, content } = data;
       const safePath = this.sanitizeRelativePath(filePath);
-      const fullPath = path.join(__dirname, 'workspaces', workspaceId, safePath);
+      const fullPath = this.getWorkspacePath(workspaceId, safePath);
       await fs.writeFile(fullPath, content);
     } catch (error) {
       console.error('Error guardando archivo:', error);
@@ -1474,19 +1505,19 @@ class PenguinAlphaServer {
       collaborators: [],
       settings: { language: 'javascript', theme: 'dark', autoSave: true }
     };
-    const workspacePath = path.join(__dirname, 'workspaces', workspaceId);
+    const workspacePath = this.getWorkspacePath(workspaceId);
     await fs.mkdir(workspacePath, { recursive: true });
     this.workspaces.set(workspaceId, workspace);
     return workspace;
   }
 
   async createAuditFile(workspaceId) {
-    const filePath = path.join(__dirname, 'workspaces', workspaceId, 'audit.js');
+    const filePath = this.getWorkspacePath(workspaceId, 'audit.js');
     await fs.writeFile(filePath, 'console.log("audit");');
   }
 
   async updateAuditFile(workspaceId) {
-    const filePath = path.join(__dirname, 'workspaces', workspaceId, 'audit.js');
+    const filePath = this.getWorkspacePath(workspaceId, 'audit.js');
     await fs.writeFile(filePath, 'console.log("audit-updated");');
   }
 
@@ -1625,4 +1656,7 @@ if (require.main === module) {
   });
 }
 
-module.exports = PenguinAlphaServer;
+module.exports = {
+  PenguinAlphaServer,
+  createApp: () => new PenguinAlphaServer().app
+};
