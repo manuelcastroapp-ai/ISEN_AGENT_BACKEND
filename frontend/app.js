@@ -115,6 +115,7 @@ class PenguinAlphaUltraIDE {
             theme: 'dark',
             mode: 'normal'
         };
+        this.permissions = null;
         this.workspaceId = null;
         this.workspaceFiles = [];
         this.currentFolderPath = '';
@@ -141,18 +142,30 @@ class PenguinAlphaUltraIDE {
 
     // 🔄 Initialize Git Integration - Feedback Applied
     initializeGitIntegration() {
+        if (typeof GitIntegration !== 'function') {
+            this.addChatMessage('⚠️ Git integration unavailable', 'System', 'system');
+            return;
+        }
         this.git = new GitIntegration(this);
         this.addChatMessage('🔄 Git integration initialized', 'System', 'system');
     }
 
     // 🛍️ Initialize Marketplace - Feedback Applied
     initializeMarketplace() {
+        if (typeof ExtensionMarketplace !== 'function') {
+            this.addChatMessage('⚠️ Extension marketplace unavailable', 'System', 'system');
+            return;
+        }
         this.marketplace = new ExtensionMarketplace(this);
         this.addChatMessage('🛍️ Extension marketplace initialized', 'System', 'system');
     }
 
     // 🔄 Initialize CI/CD Pipeline - Feedback Applied
     initializeCICDPipeline() {
+        if (typeof CICDPipeline !== 'function') {
+            this.addChatMessage('⚠️ CI/CD pipeline unavailable', 'System', 'system');
+            return;
+        }
         this.pipeline = new CICDPipeline(this);
         this.addChatMessage('🔄 CI/CD pipeline initialized', 'System', 'system');
     }
@@ -188,6 +201,12 @@ class PenguinAlphaUltraIDE {
         const el = document.getElementById('connection-status');
         if (!el) return;
         el.textContent = connected ? 'Online' : 'Offline';
+    }
+
+    safeCreateIcons() {
+        if (window.lucide && typeof window.lucide.createIcons === 'function') {
+            window.lucide.createIcons();
+        }
     }
 
     // ⚙️ Setup Theme Controls
@@ -238,6 +257,7 @@ class PenguinAlphaUltraIDE {
                     localStorage.setItem('backend-url', this.apiBase);
                     this.addChatMessage(`🔗 Backend set to ${this.apiBase}`, 'System', 'system');
                     this.connectToServer();
+                    this.refreshPermissions(true);
                 }
             });
         }
@@ -258,18 +278,7 @@ class PenguinAlphaUltraIDE {
         }
 
         if (permissionsRefresh) {
-            permissionsRefresh.addEventListener('click', async () => {
-                try {
-                    const res = await fetch(this.apiUrl('/api/permissions'));
-                    const data = await res.json();
-                    const view = document.getElementById('permissions-view');
-                    if (view) {
-                        view.textContent = JSON.stringify(data, null, 2);
-                    }
-                } catch (error) {
-                    this.addChatMessage(`❌ Permissions error: ${error.message}`, 'System', 'system');
-                }
-            });
+            permissionsRefresh.addEventListener('click', () => this.refreshPermissions(true));
         }
 
         if (auditView) {
@@ -285,6 +294,28 @@ class PenguinAlphaUltraIDE {
         }
 
         this.updateAuditSectionVisibility();
+    }
+
+    async refreshPermissions(updateView = false) {
+        try {
+            const res = await fetch(this.apiUrl('/api/permissions'));
+            const data = await res.json();
+            this.permissions = data;
+            if (updateView) {
+                const view = document.getElementById('permissions-view');
+                if (view) {
+                    view.textContent = JSON.stringify(data, null, 2);
+                }
+            }
+            const urlStatus = document.getElementById('url-access-status');
+            if (urlStatus && data?.urlPolicy) {
+                urlStatus.textContent = data.urlPolicy.confirmAll === false
+                    ? 'External URLs allowed without confirmation.'
+                    : 'External URLs require confirmation.';
+            }
+        } catch (error) {
+            this.addChatMessage(`❌ Permissions error: ${error.message}`, 'System', 'system');
+        }
     }
 
     // 🎨 Set Theme
@@ -572,11 +603,14 @@ class PenguinAlphaUltraIDE {
         });
 
         // Chat Operations
-        document.getElementById('chat-input').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                this.sendMessage();
-            }
-        });
+        const chatInput = document.getElementById('chat-input');
+        if (chatInput) {
+            chatInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    this.sendMessage();
+                }
+            });
+        }
 
         const searchInput = document.getElementById('file-search-input');
         if (searchInput) {
@@ -586,9 +620,12 @@ class PenguinAlphaUltraIDE {
         }
 
         // AI Model Selector
-        document.getElementById('ai-model-selector').addEventListener('change', (e) => {
-            this.selectAIModel(e.target.value);
-        });
+        const modelSelector = document.getElementById('ai-model-selector');
+        if (modelSelector) {
+            modelSelector.addEventListener('change', (e) => {
+                this.selectAIModel(e.target.value);
+            });
+        }
 
         // Terminal Input
         document.addEventListener('keypress', (e) => {
@@ -740,7 +777,7 @@ class PenguinAlphaUltraIDE {
             const file = this.files.get(filePath);
             this.extensionHost.runHook('onOpenFile', { filePath, content: file?.content || '' });
         }
-        lucide.createIcons();
+        this.safeCreateIcons();
     }
 
     // 📂 Open File Prompt (simple)
@@ -798,6 +835,7 @@ class PenguinAlphaUltraIDE {
     // 💬 Add Chat Message
     addChatMessage(message, sender, type = 'user') {
         const chatMessages = document.getElementById('chat-messages');
+        if (!chatMessages) return;
         const timestamp = new Date().toLocaleTimeString();
         
         const messageEl = document.createElement('div');
@@ -823,12 +861,13 @@ class PenguinAlphaUltraIDE {
         chatMessages.scrollTop = chatMessages.scrollHeight;
         
         // Re-initialize lucide icons
-        lucide.createIcons();
+        this.safeCreateIcons();
     }
 
     // 🧹 Clear Chat
     clearChat() {
         const chatMessages = document.getElementById('chat-messages');
+        if (!chatMessages) return;
         chatMessages.innerHTML = `
             <div class="chat-message ai">
                 <div class="message-avatar ai">
@@ -843,7 +882,7 @@ class PenguinAlphaUltraIDE {
                 </div>
             </div>
         `;
-        lucide.createIcons();
+        this.safeCreateIcons();
     }
 
     // 🤖 Select AI Model
@@ -978,7 +1017,7 @@ class PenguinAlphaUltraIDE {
             extensionsList.appendChild(extEl);
         });
         
-        lucide.createIcons();
+        this.safeCreateIcons();
     }
 
     // 💾 Save Current File
@@ -1028,6 +1067,11 @@ class PenguinAlphaUltraIDE {
 
     // 🌐 Connect to Server - CONEXIÓN REAL MEJORADA
     connectToServer() {
+        if (typeof io !== 'function') {
+            this.addChatMessage('⚠️ Socket.io client not available', 'System', 'system');
+            this.updateConnectionStatus(false);
+            return;
+        }
         if (this.socket) {
             this.socket.disconnect();
         }
@@ -1097,9 +1141,19 @@ class PenguinAlphaUltraIDE {
 
     // 📝 Initialize Monaco Editor
     initializeMonacoEditor() {
-        require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs' }});
-        require(['vs/editor/editor.main'], () => {
-            this.editor = monaco.editor.create(document.getElementById('monaco-editor'), {
+        if (typeof require === 'undefined') {
+            this.addChatMessage('⚠️ Monaco loader not available', 'System', 'system');
+            return;
+        }
+        try {
+            require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs' }});
+            require(['vs/editor/editor.main'], () => {
+                const container = document.getElementById('monaco-editor');
+                if (!container || !window.monaco) {
+                    this.addChatMessage('⚠️ Monaco editor container not available', 'System', 'system');
+                    return;
+                }
+                this.editor = monaco.editor.create(container, {
                 value: `// Welcome to Penguin Alpha Ultra IDE
 // This is a VS Code-style interface with full functionality
 
@@ -1132,18 +1186,29 @@ console.log(ide.greet());`,
                 // Update status bar with cursor position
                 const position = this.editor.getPosition();
                 const statusBar = document.querySelector('.status-bar');
-                statusBar.querySelector('.status-item:nth-child(4) span').textContent = 
-                    `Ln ${position.lineNumber}, Col ${position.column}`;
+                const positionLabel = statusBar ? statusBar.querySelector('.status-item:nth-child(4) span') : null;
+                if (positionLabel) {
+                    positionLabel.textContent = `Ln ${position.lineNumber}, Col ${position.column}`;
+                }
             });
 
-            if (this.currentFile) {
-                this.loadFile(this.currentFile);
-            }
-        });
+                if (this.currentFile) {
+                    this.loadFile(this.currentFile);
+                }
+            });
+        } catch (error) {
+            this.addChatMessage(`⚠️ Monaco init failed: ${error.message}`, 'System', 'system');
+        }
     }
 
     // 🖥️ Initialize Terminal
     initializeTerminal() {
+        const container = document.getElementById('terminal-container');
+        if (!container) return;
+        if (typeof Terminal === 'undefined') {
+            this.addChatMessage('⚠️ Terminal library not available', 'System', 'system');
+            return;
+        }
         this.terminal = new Terminal({
             cursorBlink: true,
             theme: {
@@ -1154,11 +1219,14 @@ console.log(ide.greet());`,
             fontFamily: 'JetBrains Mono, monospace'
         });
         
-        const fitAddon = new FitAddon.FitAddon();
-        this.terminal.loadAddon(fitAddon);
+        let fitAddon = null;
+        if (window.FitAddon && typeof window.FitAddon.FitAddon === 'function') {
+            fitAddon = new window.FitAddon.FitAddon();
+            this.terminal.loadAddon(fitAddon);
+        }
         
-        this.terminal.open(document.getElementById('terminal-container'));
-        fitAddon.fit();
+        this.terminal.open(container);
+        if (fitAddon) fitAddon.fit();
         
         this.terminal.writeln('$ Welcome to Penguin Alpha Ultra IDE Terminal');
         this.terminal.writeln('$ Type "help" for available commands');
@@ -1481,7 +1549,7 @@ console.log(ide.greet());`,
         };
 
         renderNodes(nodes, 0);
-        lucide.createIcons();
+        this.safeCreateIcons();
     }
 
     searchFiles(query) {
@@ -1509,7 +1577,7 @@ console.log(ide.greet());`,
                 this.openFile(item.dataset.path);
             });
         });
-        lucide.createIcons();
+        this.safeCreateIcons();
     }
 
     selectFolder(path, element) {
@@ -1531,7 +1599,8 @@ console.log(ide.greet());`,
         
         const statusBar = document.querySelector('.status-bar');
         const language = this.getLanguageFromExtension(filePath);
-        statusBar.querySelector('span:last-child').textContent = language;
+        const langTarget = statusBar ? statusBar.querySelector('span:last-child') : null;
+        if (langTarget) langTarget.textContent = language;
     }
 
     setEditorContent(content, filePath) {
@@ -1594,7 +1663,7 @@ console.log(ide.greet());`,
             body.innerHTML = '';
             panel.render(body, this, id);
         }
-        lucide.createIcons();
+        this.safeCreateIcons();
     }
 
     initializeUrlConfirmation() {
@@ -1620,11 +1689,21 @@ console.log(ide.greet());`,
             </div>
         `;
         document.body.appendChild(modal);
-        lucide.createIcons();
+        this.safeCreateIcons();
     }
 
     async confirmExternalUrl(action, url) {
         this.initializeUrlConfirmation();
+        const policy = this.permissions?.urlPolicy;
+        if (policy) {
+            if (policy.confirmAll === false) return true;
+            if (Array.isArray(policy.allowed)) {
+                if (policy.allowed.includes('*')) return true;
+                if (policy.allowed.some((entry) => String(url).startsWith(String(entry)))) {
+                    return true;
+                }
+            }
+        }
         const modal = document.getElementById('url-confirm-modal');
         const text = document.getElementById('url-confirm-text');
         const allowBtn = document.getElementById('url-confirm-allow');
@@ -1709,10 +1788,15 @@ document.addEventListener('DOMContentLoaded', () => {
     window.ide = new PenguinAlphaUltraIDE();
     
     // Initialize Lucide icons
-    lucide.createIcons();
+    if (window.ide && typeof window.ide.safeCreateIcons === 'function') {
+        window.ide.safeCreateIcons();
+    }
     
     // Set initial states
-    document.querySelector('.activity-item[data-panel="explorer"]').classList.add('active');
-    document.querySelector('.panel-tab[data-panel="terminal"]').classList.add('active');
-    document.querySelector('.editor-tab').classList.add('active');
+    const activity = document.querySelector('.activity-item[data-panel="explorer"]');
+    if (activity) activity.classList.add('active');
+    const panelTab = document.querySelector('.panel-tab[data-panel="terminal"]');
+    if (panelTab) panelTab.classList.add('active');
+    const editorTab = document.querySelector('.editor-tab');
+    if (editorTab) editorTab.classList.add('active');
 });

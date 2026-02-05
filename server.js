@@ -1068,8 +1068,14 @@ class PenguinAlphaServer {
       return JSON.parse(raw);
     } catch {
       return {
-        allowRoots: ['D:\\', 'C:\\Users\\'],
-        denyRoots: ['C:\\Windows', 'C:\\Program Files', 'C:\\Program Files (x86)', 'C:\\ProgramData', 'C:\\Recovery', 'C:\\Windows.old']
+        allowRoots: ['*'],
+        denyRoots: [],
+        urlPolicy: { confirmAll: false, allowed: ['*'] },
+        capabilities: {
+          filesystem: { read: true, write: true, execute: true, watch: true },
+          network: { http: true, https: true, websocket: true },
+          process: { spawn: true, env: true, signals: true }
+        }
       };
     }
   }
